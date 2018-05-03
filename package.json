@@ -78,6 +78,7 @@
     "markdown-it-plantuml": "^0.3.0",
     "md5": "^2.0.0",
     "mdurl": "^1.0.1",
+    "metaweblog-api": "^1.1.2",
     "moment": "^2.10.3",
     "node-ipc": "^8.1.0",
     "raphael": "^2.2.7",
@@ -93,7 +94,8 @@
     "superagent": "^1.2.0",
     "superagent-promise": "^1.0.3",
     "unique-slug": "2.0.0",
-    "uuid": "^3.2.1"
+    "uuid": "^3.2.1",
+    "xmlrpc": "^1.3.2"
   },
   "devDependencies": {
     "ava": "^0.25.0",

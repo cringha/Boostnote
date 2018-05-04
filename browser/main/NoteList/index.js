@@ -24,6 +24,14 @@ var MetaWeblog = require('metaweblog-api');
 import { formatDate } from 'browser/lib/date-formatter';
 const { remote } = require('electron')
 const { Menu, MenuItem, dialog } = remote
+
+
+import {downloadBlogById , checkImageCache , searchImages , findActiveBlogInNote , uploadMarkdownImages , publishMarkdownContent , replaceContentUrl} from 'browser/lib/noteutils'
+
+
+import { openModal } from 'browser/main/lib/modal'
+import PreferencesModal from '../modals/PreferencesModal'
+import BlogListModal from 'browser/main/modals/BlogListModal'
 const WP_POST_PATH = '/wp/v2/posts'
 const IMAGE_REG = /!\[(.*?)\]\((.*)\)/gi;
 // storage image path 
@@ -493,7 +501,7 @@ class NoteList extends React.Component {
         const publishLabel = i18n.__('Publish Blog')
         const updateLabel = i18n.__('Update Blog')
         const openBlogLabel = i18n.__('Open Blog');
-        const fetchBlogLabel = i18n.__('Fetch Blog')
+        const fetchBlogLabel = i18n.__('Download Blog')
 
         const menu = new Menu()
 
@@ -526,8 +534,10 @@ class NoteList extends React.Component {
                 click: this.copyNoteLink(note)
             }))
             if (note.type === 'MARKDOWN_NOTE') {
-
-                var blog = this.findActionBlog( note);
+                const config = ConfigManager.get();
+                const { address, token, authMethod, username, password } = config.blog ;
+                
+                var blog = findActiveBlogInNote( note , address);
 
                 if ( blog && blog.blogId ) {
                     menu.append(new MenuItem({
@@ -713,6 +723,15 @@ class NoteList extends React.Component {
     }
  
 
+
+    handleListBlogsButtonClick(e, style) {
+        var notes  = this.notes ;
+         
+        const { dispatch , data, params } = this.props;
+        
+        openModal(BlogListModal, {notes , dispatch , data, params} );
+         
+    }
     updateMarkdown() {
         if (this.pendingUpdated) {
             clearTimeout(this.pendingUpdated)
@@ -722,6 +741,10 @@ class NoteList extends React.Component {
         }, 200)
     }
 
+
+ 
+
+
     publishMarkdown() {
         if (this.pendingPublish) {
             clearTimeout(this.pendingPublish)
@@ -730,159 +753,60 @@ class NoteList extends React.Component {
             this.publishMarkdownAndImagesNowMetaWeblogApi()
         }, 200)
     }
-    searchImages(content, regex) {
-        //  const regex = IMAGE_REG ; /// /\{\w+\}/g;
-        let m;
-        let array = [];
-        while ((m = regex.exec(content)) !== null) {
-            // This is necessary to avoid infinite loops with zero-width matches
-            if (m.index === regex.lastIndex) {
-                regex.lastIndex++;
-            }
-            var fx = m[0];
-            if (fx) {
-                var name = fx.substring(1, fx.length - 1);
-                // console.log( 'm0  ' + m[0] ); 
-                // console.log( 'm1  ' + m[1] ); 
-                // console.log( 'm2  ' + m[2] ); 
-                // console.log( '');
-                if (m[2])
-                    array.push(m[2]);
-            }
-        }
-        return array;
-    }
-    checkImageCache(blog, image) {
-        if (!blog.imageUrls || blog.imageUrls.length == 0)
-            return null;
+    
 
-        for (var i = 0; i < blog.imageUrls.length; i++) {
-            var im = blog.imageUrls[i];
-            if (im.src == image)
-                return im;
-        }
 
-        return null;
-
-    }
-    publishMarkdownNowMetaWeblogApi(metaWeblog, firstNote, blog, contentToRender) {
+    // publish markdown content 
+    publishMarkdownContentMetaWeblogApi( note, blog ) {
         const config = ConfigManager.get();
         const { address, token, authMethod, username, password } = config.blog
 
         let blogId = null;
 
         blogId = blog.blogId;
-
-        // 将本地图片替换为 HTTP 图片
-        let exportedData = contentToRender.replace(IMAGE_REG, (match, dstFilename, srcFilename) => {
-            var im = this.checkImageCache(blog, srcFilename);
-            if (im) {
-                srcFilename = im.url;
-            }
-            return `![${dstFilename}](${srcFilename})`;
-
-        });
-
-
-
-        var post = {
-            title: firstNote.title,
-            description: exportedData,
-            categories: firstNote.tags
-        };
-
-
-
-        if (blogId) {
-            console.log('editPost ' + blogId + ' ' + username + ' ' + post.title);
-            metaWeblog.editPost(blogId, username, password, post, true)
-                .then(blogId2 => {
-                    // handle the blog information here
-
-                    console.log('after EditPost ' + blogId + ' ' + username + ' ' + post.title + ' new id ' + blogId2);
-
-                    if (_.isNil(blogId2)) {
-                        return Promise.reject()
-                    }
-                    blog.blogId = blogId2;
-                    this.save(firstNote)
-                    this.confirmPublish(firstNote)
-
-
-                    //   fs.writeFileSync('./blog.'+ blogId +'.json',JSON.stringify(blog));
-
-                })
-                .catch(error => {
-                    console.error(error);
-                    this.confirmPublishError(error);
-                });
-
-        } else {
-            console.log('newPost ' + blogId + ' ' + username + ' ' + post.title);
-            metaWeblog.newPost(username, username, password, post, true)
-                .then(blogId2 => {
-                    // handle the blog information here
-
-                    console.log('after newPost ' + blogId + ' ' + username + ' ' + post.title + ' new id ' + blogId2);
-                    if (_.isNil(blogId2)) {
-                        return Promise.reject()
-                    }
-                    blog.blogId = blogId2;
-                    this.save(firstNote)
-                    this.confirmPublish(firstNote)
-                  
-
-                    //   fs.writeFileSync('./blog.'+ blogId +'.json',JSON.stringify(blog));
-
-                })
-                .catch(error => {
-                    console.error(error)
-                    this.confirmPublishError(error)
-                });
-
-        }
-
-    }
-
-
-    // get current action blog config ;
-    findActionBlog(firstNote , addr ){
-
+ 
+        var that = this;
         
+        publishMarkdownContent( config.blog , note , blog  , function(blogId2){
+                blog.blogId = blogId2;
+                that.save(note);
+                that.confirmPublish(note);
+            } , 
+            function(err){
+                that.confirmPublishError(err);
+            });
 
-        var address = addr ;
-
-        if(!address){
-            const config = ConfigManager.get();
-            address = config.blog.address  ;
-        }
-
-        if (!Array.isArray(firstNote.blog))
-            firstNote.blog = [];
-
-
-
-        var blog = this.findBlog(firstNote.blog, address); // firstNote.blog ;
-        if (!blog) {
-            blog = {
-                address: address,
-                blogId: null,
-                url: null,
-                imageUrls: []
-            };
-
-            firstNote.blog.push(blog);
-        }
-
-        return blog;
-    }
-
-    findBlog(blogs, address) {
-        if (!blogs) return null;
-        return blogs.find((blog) => blog.address === address);
+ 
 
     }
 
+ 
+
+    // publish markdown &images to weblog 
+    publishMarkdownAndImagesNowMetaWeblogApi() {
+        const { selectedNoteKeys } = this.state
+        const notes = this.notes.map((note) => Object.assign({}, note))
+        const selectedNotes = findNotesByKeys(notes, selectedNoteKeys)
+        const firstNote = selectedNotes[0]
+        const config = ConfigManager.get()
+   
+        var that = this;
+    
+
+        uploadMarkdownImages( config.blog , firstNote , 
+            function( note, blog1 ){
+            
+                that.publishMarkdownContentMetaWeblogApi( note, blog1 );
+
+            }, 
+            function(error){
+                that.confirmPublishError(err);
+            }
+        );
+ 
+ 
+
+    }
 
     // 从服务器更新 内容，刷新本地程序
     updateMarkdownFromServer(){
@@ -895,31 +819,27 @@ class NoteList extends React.Component {
         const { router } = this.context;
          
         const { dispatch, location } = this.props
-        var blog = this.findActionBlog( firstNote , address );
+        var blog = findActiveBlogInNote( firstNote , address );
         if(!blog || !blog.blogId ) {
             console.log('blogId is empty ' + firstNote.title );
             return ;
         }
 
-        // 'http://172.17.2.220:18080/solo/apis/metaweblog'; // use your blog API instead
-        console.log("Fetch blog from " + address + " " + username + " blogId is " + blog.blogId );
-        var metaWeblog = new MetaWeblog(address);
 
-        metaWeblog.getPost(blog.blogId, username, password)
-            .then(blogContent => {
+        var that = this;
+
+        downloadBlogById( config.blog , blog.blogId , 
+            function( blogContent ){
                 console.log(blogContent);
-                var mz = new Date();
-                firstNote.title = blogContent.title ; // mz + blogContent.title + mz;
-                firstNote.content = blogContent.description ; /// "# " + mz + "\n "+ blogContent.description;
-                firstNote.tags = blogContent.categories;
-                // firstNote.updatedAt = new Date().toString()   ;
-    
-                // router.push({
-                //             pathname: location.pathname,
-                //             query: { key: firstNote.key   , time: mz.getTime()}
-                //         });;
-
                 
+                firstNote.title = blogContent.title ; // mz + blogContent.title + mz;
+               
+                firstNote.tags = blogContent.categories;
+    
+                firstNote.content = replaceContentUrl( blogContent.description , blog );
+
+ 
+
                 dataApi
                     .updateNote(firstNote.storage, firstNote.key, firstNote)
                     .then((note) => {
@@ -933,153 +853,14 @@ class NoteList extends React.Component {
                             query: { key: note.key  }
                         });
                     });
-
-                
-
-
-                // this.confirmUpdated(firstNote);
-
-                // const newSelectedNoteKeys = selectedNoteKeys.filter((noteKey) => noteKey !== uniqueKey)
-                // this.setState({
-                //     selectedNoteKeys:  [firstNote.key]
-                // });
-                // router.replace({
-                //     pathname: location.pathname,
-                //     query: {
-                //         key: firstNote.key
-                //     }
-                // });
-                 
-                // hashHistory.push({
-                //                 pathname: location.pathname,
-                //                 query: { key: firstNote.key }
-                //             })
-
-                // router.push({
-                //     pathname: location.pathname,
-                //     query: {
-                //         key: firstNote.key
-                //     }
-                // });
-
-                   // ee.emit('list:jump', firstNote.key);
-                    // ee.emit('detail:focus');
-            })
-            .catch(error => {
-                console.log(error);
-        });
-
-
-    }
-
-    // publish markdown &images to weblog 
-    publishMarkdownAndImagesNowMetaWeblogApi() {
-        const { selectedNoteKeys } = this.state
-        const notes = this.notes.map((note) => Object.assign({}, note))
-        const selectedNotes = findNotesByKeys(notes, selectedNoteKeys)
-        const firstNote = selectedNotes[0]
-        const config = ConfigManager.get()
-        const { address, token, authMethod, username, password } = config.blog
-
-        const contentToRender = firstNote.content.replace(`# ${firstNote.title}`, '')
-
-
-
-        // 'http://172.17.2.220:18080/solo/apis/metaweblog'; // use your blog API instead
-        var metaWeblog = new MetaWeblog(address);
-
-        var blog = this.findActionBlog( firstNote , address );
-
+            }, function (msg, error){
+                that.confirmError( msg , error );
+            }
+        );
  
 
-        // process local images ;
-        var list = this.searchImages(contentToRender, IMAGE_REG);
-        var ims = [];
-
-        var tasks = [];
-        if (list) {
-            for (var i = 0; i < list.length; i++) {
-                var file = list[i];
-                try {
-
-                    if (file.match(/^http/i)) {
-                        continue;
-                    }
-
-                    // ¼ì²éÍ¼Æ¬ÊÇ·ñÒÑ¾­ÉÏ´«¹ý
-                    var im = this.checkImageCache(blog, file);
-                    if (!im) {
-                        var imageContent = null;
-                        if (file.match(/^\\\:storage/i) || file.match(/^\/\:storage/i)) {
-
-                            // lenght of "/:storage"
-                            var name = file.substring(10);
-                            const { storage, folder } = this.resolveTargetFolder();
-                            var fullPath = path.join(storage.path, IMAGES_FOLDER_NAME, name);
-
-                            imageContent = fs.readFileSync(fullPath);
-                        } else {
-                            imageContent = fs.readFileSync(file);
-                        }
-
-
-                        if (imageContent) {
-                            // if( !Buffer.isBuffer(imageContent))
-                            if (imageContent.length > 0) {
-                                imageContent = new Buffer(imageContent);
-                            }
-                        }
-                        var image = {
-                            name: file,
-                            //          type : 'image/png',
-                            bits: imageContent // { base64 : base64file}
-
-                        };
-                        // console.log(image);
-                        var p = metaWeblog.newMediaObject('', username, password, image, true);
-                        tasks.push(p);
-                        ims.push(file);
-
-                    }
-                } catch (e) {
-                    console.log(e);
-                }
-
-            }
-        }
-
-        var that = this;
-
-        if (tasks && tasks.length > 0) {
-            Promise.all(tasks)
-                .then(results => {
-
-                    for (var i = 0; i < results.length; i++) {
-                        var ret = results[i];
-                        var file = ims[i];
-                        if (file) {
-                            if (!blog.imageUrls) blog.imageUrls = [];
-                            blog.imageUrls.push({
-                                src: file,
-                                url: ret.url
-                            });
-                        }
-                    }
-
-
-                    that.publishMarkdownNowMetaWeblogApi(metaWeblog, firstNote, blog, contentToRender);
-
-                }).catch(err => {
-                    console.log(err)
-                    this.confirmPublishError(err);
-                });
-        } else {
-
-            that.publishMarkdownNowMetaWeblogApi(metaWeblog, firstNote, blog, contentToRender);
-        }
-
-
     }
+
 
     publishMarkdownNow() {
         const { selectedNoteKeys } = this.state
@@ -1136,7 +917,17 @@ class NoteList extends React.Component {
                 this.confirmPublishError()
             })
     }
-
+    confirmError(msg , e) {
+        const { remote } = electron
+        const { dialog } = remote
+        const alertError = {
+            type: 'warning',
+            message: msg,
+            detail: ''+ e,
+            
+        }
+        dialog.showMessageBox(remote.getCurrentWindow(), alertError)
+    }
     confirmPublishError(e) {
         const { remote } = electron
         const { dialog } = remote
@@ -1292,144 +1083,156 @@ class NoteList extends React.Component {
         if (storage) return 'STORAGE'
     }
 
-    render() {
-        const { location, config } = this.props
-        let { notes } = this.props
-        const { selectedNoteKeys } = this.state
-        const sortFunc = config.sortBy === 'CREATED_AT' ?
-            sortByCreatedAt :
-            config.sortBy === 'ALPHABETICAL' ?
-            sortByAlphabetical :
-            sortByUpdatedAt
-        const sortedNotes = location.pathname.match(/\/starred|\/trash/) ?
-            this.getNotes().sort(sortFunc) :
-            this.sortByPin(this.getNotes().sort(sortFunc))
-        this.notes = notes = sortedNotes.filter((note) => {
-            // this is for the trash box
-            if (note.isTrashed !== true || location.pathname === '/trashed') return true
-        })
+  render () {
+    const { location, config } = this.props
+    let { notes } = this.props
+    const { selectedNoteKeys } = this.state
+    const sortFunc = config.sortBy === 'CREATED_AT'
+      ? sortByCreatedAt
+      : config.sortBy === 'ALPHABETICAL'
+      ? sortByAlphabetical
+      : sortByUpdatedAt
+    const sortedNotes = location.pathname.match(/\/starred|\/trash/)
+        ? this.getNotes().sort(sortFunc)
+        : this.sortByPin(this.getNotes().sort(sortFunc))
+    this.notes = notes = sortedNotes.filter((note) => {
+      // this is for the trash box
+      if (note.isTrashed !== true || location.pathname === '/trashed') return true
+    })
 
-        moment.updateLocale('en', {
-            relativeTime: {
-                future: 'in %s',
-                past: '%s ago',
-                s: '%ds',
-                ss: '%ss',
-                m: '1m',
-                mm: '%dm',
-                h: 'an hour',
-                hh: '%dh',
-                d: '1d',
-                dd: '%dd',
-                M: '1M',
-                MM: '%dM',
-                y: '1Y',
-                yy: '%dY'
-            }
-        })
+    moment.updateLocale('en', {
+      relativeTime: {
+        future: 'in %s',
+        past: '%s ago',
+        s: '%ds',
+        ss: '%ss',
+        m: '1m',
+        mm: '%dm',
+        h: 'an hour',
+        hh: '%dh',
+        d: '1d',
+        dd: '%dd',
+        M: '1M',
+        MM: '%dM',
+        y: '1Y',
+        yy: '%dY'
+      }
+    })
 
-        const viewType = this.getViewType()
+    const viewType = this.getViewType()
 
-        const noteList = notes
-            .map(note => {
-                if (note == null) {
-                    return null
-                }
+    const noteList = notes
+      .map(note => {
+        if (note == null) {
+          return null
+        }
 
-                const isDefault = config.listStyle === 'DEFAULT'
-                const uniqueKey = getNoteKey(note)
-                const isActive = selectedNoteKeys.includes(uniqueKey)
-                const dateDisplay = moment(
-                    config.sortBy === 'CREATED_AT' ?
-                    note.createdAt : note.updatedAt
-                ).fromNow('D')
+        const isDefault = config.listStyle === 'DEFAULT'
+        const uniqueKey = getNoteKey(note)
+        const isActive = selectedNoteKeys.includes(uniqueKey)
+        const dateDisplay = moment(
+          config.sortBy === 'CREATED_AT'
+            ? note.createdAt : note.updatedAt
+        ).fromNow('D')
 
-                if (isDefault) {
-                    return ( <
-                        NoteItem isActive = { isActive } note = { note } dateDisplay = { dateDisplay } key = { uniqueKey } handleNoteContextMenu = { this.handleNoteContextMenu.bind(this) } handleNoteClick = { this.handleNoteClick.bind(this) } handleDragStart = { this.handleDragStart.bind(this) } pathname = { location.pathname } folderName = { this.getNoteFolder(note).name } storageName = { this.getNoteStorage(note).name } viewType = { viewType }
-                        />
-                    )
-                }
+        if (isDefault) {
+          return (
+            <NoteItem
+              isActive={isActive}
+              note={note}
+              dateDisplay={dateDisplay}
+              key={uniqueKey}
+              handleNoteContextMenu={this.handleNoteContextMenu.bind(this)}
+              handleNoteClick={this.handleNoteClick.bind(this)}
+              handleDragStart={this.handleDragStart.bind(this)}
+              pathname={location.pathname}
+              folderName={this.getNoteFolder(note).name}
+              storageName={this.getNoteStorage(note).name}
+              viewType={viewType}
+            />
+          )
+        }
 
-                return ( <
-                    NoteItemSimple isActive = { isActive } note = { note } key = { uniqueKey } handleNoteContextMenu = { this.handleNoteContextMenu.bind(this) } handleNoteClick = { this.handleNoteClick.bind(this) } handleDragStart = { this.handleDragStart.bind(this) } pathname = { location.pathname } folderName = { this.getNoteFolder(note).name } storageName = { this.getNoteStorage(note).name } viewType = { viewType }
-                    />
-                )
-            })
-
-        return ( <
-            div className = 'NoteList'
-            styleName = 'root'
-            style = { this.props.style } onDrop = {
-                (e) => this.handleDrop(e) } >
-            <
-            div styleName = 'control' >
-            <
-            div styleName = 'control-sortBy' >
-            <
-            i className = 'fa fa-angle-down' / >
-            <
-            select styleName = 'control-sortBy-select'
-            title = { i18n.__('Select filter mode') } value = { config.sortBy } onChange = {
-                (e) => this.handleSortByChange(e) } >
-            <
-            option title = 'Sort by update time'
-            value = 'UPDATED_AT' > { i18n.__('Updated') } < /option> <
-            option title = 'Sort by create time'
-            value = 'CREATED_AT' > { i18n.__('Created') } < /option> <
-            option title = 'Sort alphabetically'
-            value = 'ALPHABETICAL' > { i18n.__('Alphabetically') } < /option> <
-            /select> <
-            /div> <
-            div styleName = 'control-button-area' >
-            <
-            button title = { i18n.__('Default View') } styleName = {
-                config.listStyle === 'DEFAULT' ?
-                'control-button--active' :
-                    'control-button'
-            }
-            onClick = {
-                (e) => this.handleListStyleButtonClick(e, 'DEFAULT') } >
-            <
-            img styleName = 'iconTag'
-            src = '../resources/icon/icon-column.svg' / >
-            <
-            /button> <
-            button title = { i18n.__('Compressed View') } styleName = {
-                config.listStyle === 'SMALL' ?
-                'control-button--active' :
-                    'control-button'
-            }
-            onClick = {
-                (e) => this.handleListStyleButtonClick(e, 'SMALL') } >
-            <
-            img styleName = 'iconTag'
-            src = '../resources/icon/icon-column-list.svg' / >
-            <
-            /button> <
-            /div> <
-            /div> <
-            div styleName = 'list'
-            ref = 'list'
-            tabIndex = '-1'
-            onKeyDown = {
-                (e) => this.handleNoteListKeyDown(e) } onKeyUp = { this.handleNoteListKeyUp } >
-            { noteList } <
-            /div> <
-            /div>
+        return (
+          <NoteItemSimple
+            isActive={isActive}
+            note={note}
+            key={uniqueKey}
+            handleNoteContextMenu={this.handleNoteContextMenu.bind(this)}
+            handleNoteClick={this.handleNoteClick.bind(this)}
+            handleDragStart={this.handleDragStart.bind(this)}
+            pathname={location.pathname}
+            folderName={this.getNoteFolder(note).name}
+            storageName={this.getNoteStorage(note).name}
+            viewType={viewType}
+          />
         )
-    }
+      })
+
+    return (
+      <div className='NoteList'
+        styleName='root'
+        style={this.props.style}
+        onDrop={(e) => this.handleDrop(e)}
+      >
+        <div styleName='control'>
+          <div styleName='control-sortBy'>
+            <i className='fa fa-angle-down' />
+            <select styleName='control-sortBy-select'
+              title={i18n.__('Select filter mode')}
+              value={config.sortBy}
+              onChange={(e) => this.handleSortByChange(e)}
+            >
+              <option title='Sort by update time' value='UPDATED_AT'>{i18n.__('Updated')}</option>
+              <option title='Sort by create time' value='CREATED_AT'>{i18n.__('Created')}</option>
+              <option title='Sort alphabetically' value='ALPHABETICAL'>{i18n.__('Alphabetically')}</option>
+            </select>
+          </div>
+          <div styleName='control-button-area'>
+            <button title={i18n.__('Blogs List View')} styleName='control-button--active'  onClick={(e) => this.handleListBlogsButtonClick(e )}
+            >
+                <img styleName='iconTag' src='../resources/icon/icon-sidebar.svg' />
+            </button>
+            <button title={i18n.__('Default View')} styleName={config.listStyle === 'DEFAULT'
+                ? 'control-button--active'
+                : 'control-button'
+              }
+              onClick={(e) => this.handleListStyleButtonClick(e, 'DEFAULT')}
+            >
+              <img styleName='iconTag' src='../resources/icon/icon-column.svg' />
+            </button>
+            <button title={i18n.__('Compressed View')} styleName={config.listStyle === 'SMALL'
+                ? 'control-button--active'
+                : 'control-button'
+              }
+              onClick={(e) => this.handleListStyleButtonClick(e, 'SMALL')}
+            >
+              <img styleName='iconTag' src='../resources/icon/icon-column-list.svg' />
+            </button>
+          </div>
+        </div>
+        <div styleName='list'
+          ref='list'
+          tabIndex='-1'
+          onKeyDown={(e) => this.handleNoteListKeyDown(e)}
+          onKeyUp={this.handleNoteListKeyUp}
+        >
+          {noteList}
+        </div>
+      </div>
+    )
+  }
 }
 NoteList.contextTypes = {
-    router: PropTypes.shape([])
+  router: PropTypes.shape([])
 }
 
 NoteList.propTypes = {
-    dispatch: PropTypes.func,
-    repositories: PropTypes.array,
-    style: PropTypes.shape({
-        width: PropTypes.number
-    })
+  dispatch: PropTypes.func,
+  repositories: PropTypes.array,
+  style: PropTypes.shape({
+    width: PropTypes.number
+  })
 }
 
 export default CSSModules(NoteList, styles)

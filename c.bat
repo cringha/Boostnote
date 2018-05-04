@@ -1,0 +1,1 @@
+copy compiled\main.js C:\Users\cn1lk0x0\AppData\Local\boost\app-0.11.4\resources\app\compiled

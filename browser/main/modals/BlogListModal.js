@@ -5,14 +5,14 @@ import styles from './BlogListModal.styl'
 import dataApi from 'browser/main/lib/dataApi'
 import store from 'browser/main/store'
 import ModalEscButton from 'browser/components/ModalEscButton'
-import {findNoteByPostId} from 'browser/lib/noteutils'
+
 const { remote } = require('electron');
 const { Menu, MenuItem, dialog } = remote;
 
 import i18n from 'browser/lib/i18n'
 var MetaWeblog = require('metaweblog-api');
 import ConfigManager from 'browser/main/lib/ConfigManager';
-import {downloadBlogById  , findActiveBlogInNote , replaceContentUrl  } from 'browser/lib/noteutils'
+import {downloadBlogById  , findActiveBlogInNote , replaceContentUrl ,findNoteByPostId ,loadUserBlogs } from 'browser/lib/metaweblogutils'
 
 
 class BlogListModal extends React.Component {
@@ -58,7 +58,7 @@ class BlogListModal extends React.Component {
         showMessageBox(message) {
             dialog.showMessageBox(remote.getCurrentWindow(), {
                 type: 'warning',
-                message: message,
+                message: ''+message,
                 buttons: [i18n.__('OK')]
             })
         }
@@ -98,53 +98,105 @@ class BlogListModal extends React.Component {
 
             newNote.title = note.title ; // mz + blogContent.title + mz;
             newNote.tags = note.categories;
-            newNote.content = note.description ; // 
-            newNote.blog =[
-                {
+            newNote.content = "# " + note.title +"\n" +  note.description ; // 
+
+            var blog = {
                     address: address,
                     blogId: postId,
                     url: null,
                     imageUrls: []
-                }
+                };
+            newNote.blog =[
+                 blog
             ];
+            var that = this;
 
+            // 将内容中http://.....image  url 图片下载，并替换
+            newNote.content = replaceContentUrl(storage.path, newNote.content , blog  , 
+                function(){
+                    newNote.content = replaceContentUrl( storage.path , newNote.content , blog );
+                    that.saveNote(newNote , storage.key);                    
+                }
+            );
 
-            dataApi.createNote(storage.key, newNote)
-                .then((note) => {
-                    dispatch({
-                        type: 'UPDATE_NOTE',
-                        note: note
-                    })
-                     
-                })
+            this.saveNote(newNote , storage.key );
+
 
         }
+
+
+
+
+
+        saveNote(note1 , storage ) {
+            
+            const { dispatch, location } = this.props;
+            if (this.pendingSaveNote) {
+                clearTimeout(this.pendingSaveNote)
+            }
+            this.pendingSaveNote = setTimeout(() => {
+                
+
+
+                var st = storage || note1.storage ;
+
+                if( note1.key ){
+                    console.log('update note : ' + note1.title + ' ' + note1.key);
+                    dataApi
+                        .updateNote( st  , note1.key, note1)
+                        .then((note) => {
+                            dispatch({
+                                type: 'UPDATE_NOTE',
+                                note: note
+                            });
+                        });
+                }else {
+                    console.log('save new note : ' + note1.title );
+                    dataApi.createNote( st , note1)
+                        .then((note) => {
+                            dispatch({
+                                type: 'UPDATE_NOTE',
+                                note: note
+                            })
+                        });
+                }
+
+                
+
+            }, 2000);
+        }
+
+
+
 
         overrideToNote(blogContent, postId, oldNote , blogConfig ){
             console.log(blogContent);
             const { dispatch } = this.props;
+            const { storage, folder } = this.resolveTargetFolder();
+
             var blog = findActiveBlogInNote( oldNote , blogConfig.address );
             if(!blog ) {
                 blog = {} ;
             }
 
+            var that = this;
             blog.blogId = postId ;
             
             // var mz = new Date();
             oldNote.title =   blogContent.title ; // mz + blogContent.title + mz;
             oldNote.tags = blogContent.categories;
-            oldNote.content = replaceContentUrl( blogContent.description , blog );
+            oldNote.content = "# " + blogContent.title +"\n\n\n\n" + blogContent.description;
+            oldNote.content =   replaceContentUrl(storage.path, blogContent.content , blog  , function(){
+
+                oldNote.content = replaceContentUrl( storage.path , blogContent.content , blog );
+                that.saveNote(oldNote);                    
+            });
 
 
-            dataApi
-                .updateNote(oldNote.storage, oldNote.key, oldNote)
-                .then((note) => {
-                    dispatch({
-                        type: 'UPDATE_NOTE',
-                        note: note
-                    });
- 
-                });
+
+            this.saveNote(oldNote);
+
+      
 
         }
 
@@ -263,40 +315,18 @@ class BlogListModal extends React.Component {
             const { address, token, authMethod, username, password } = config.blog
 
             // 'http://172.17.2.220:18080/solo/apis/metaweblog'; // use your blog API instead
-            var metaWeblog = new MetaWeblog(address);
-
+           
             var {notes} = this.props ;
-            var blogId = username; //  "liu.kang@siemens.com";
+          
+            var that = this;
 
-            metaWeblog.getRecentPosts(blogId, username, password, 50)
-                .then(blogs => {
-                    // handle the blog information here
-                    // console.log(blogs);
+            loadUserBlogs( config.blog , notes , function(blogs){
+                that.setState({blogs : blogs });
+            }, function(error){
+                that.showMessageBox(error);
+            });
 
-                    for (var i = 0; i < blogs.length; i++) {
-                        var blog = blogs[i];
-                        console.log(blog.postid, blog.title, blog.categories);
-
-                        if( notes ){
-                            var note = findNoteByPostId(notes, address, blog.postid);
-                            if(note){
-                                blog.local = note ;
-                                blog.localTitle = note.title;
-                            }
-                        }
-
-                    }
-
-
-
-
-                    this.setState({blogs : blogs });
-
-                })
-                .catch(error => {
-                    console.log(error);
-                });
-
+           
         }
 
 
@@ -347,14 +377,16 @@ class BlogListModal extends React.Component {
             <tr styleName="tr">
                 <td styleName="td" > {blog.postid} </td>
                 <td styleName="td" > 
-                    <a 
-                        onMouseDown={(e) => this.downloadBlog(e, blog)} 
-                    >  
+                    
                         { this.getBlogTitle(blog)  }  
-                    </a>  
+                     
                 </td>
                 <td styleName="td" > { this.tagsToString(blog.categories) }  </td>
-                 
+                <td styleName="td" >
+                    <button  onMouseDown={(e) => this.downloadBlog(e, blog)} >
+                        <img src='../resources/icon/icon-newnote.svg' />
+                    </button>
+                </td> 
             </tr>
       )
     });
@@ -377,13 +409,17 @@ class BlogListModal extends React.Component {
         <ModalEscButton handleEscButtonClick={(e) => this.handleCloseButtonClick(e)} />
 
         <table styleName='table'>
-            <tr styleName="tr">
+            <thead>
+            <tr styleName="th">
                 <td styleName="td"> ID </td>
                 <td styleName="td"> Title </td>
                 <td styleName="td"> Tags </td>
-                
+                <td styleName="td"> Download </td>
             </tr>
+            </thead>
+            <tbody>
             {folderList}
+            </tbody>
         </table>
 
          

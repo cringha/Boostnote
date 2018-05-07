@@ -26,7 +26,7 @@ const { remote } = require('electron')
 const { Menu, MenuItem, dialog } = remote
 
 
-import {downloadBlogById , checkImageCache , searchImages , findActiveBlogInNote , uploadMarkdownImages , publishMarkdownContent , replaceContentUrl} from 'browser/lib/noteutils'
+import {downloadBlogById , checkImageCache , searchImages , findActiveBlogInNote , uploadMarkdownImages , publishMarkdownContent , replaceContentUrl} from 'browser/lib/metaweblogutils'
 
 
 import { openModal } from 'browser/main/lib/modal'
@@ -770,7 +770,7 @@ class NoteList extends React.Component {
         publishMarkdownContent( config.blog , note , blog  , function(blogId2){
                 blog.blogId = blogId2;
                 that.save(note);
-                that.confirmPublish(note);
+                that.confirmPublish( config.blog , note);
             } , 
             function(err){
                 that.confirmPublishError(err);
@@ -800,13 +800,47 @@ class NoteList extends React.Component {
 
             }, 
             function(error){
-                that.confirmPublishError(err);
+                that.confirmPublishError(error);
             }
         );
  
  
 
     }
+
+
+
+
+    saveAndRefreshNote(note1) {
+        const { router } = this.context;;
+         const { dispatch, location } = this.props;
+        if (this.pendingSaveNote) {
+            clearTimeout(this.pendingSaveNote)
+        }
+        this.pendingSaveNote = setTimeout(() => {
+            
+            dataApi
+                    .updateNote(note1.storage, note1.key, note1)
+                    .then((note) => {
+                        dispatch({
+                            type: 'UPDATE_NOTE',
+                            note: note
+                        });
+
+                        note.needRefresh = true ;
+
+                        router.push({
+                            pathname: location.pathname,
+                            query: { key: note1.key  }
+                        });
+                    });
+
+        }, 2000);
+    }
+
+
+
+
 
     // 从服务器更新 内容，刷新本地程序
     updateMarkdownFromServer(){
@@ -817,7 +851,8 @@ class NoteList extends React.Component {
         const config = ConfigManager.get()
         const { address, token, authMethod, username, password } = config.blog
         const { router } = this.context;
-         
+        const { storage, folder } = this.resolveTargetFolder();
+
         const { dispatch, location } = this.props
         var blog = findActiveBlogInNote( firstNote , address );
         if(!blog || !blog.blogId ) {
@@ -833,26 +868,17 @@ class NoteList extends React.Component {
                 console.log(blogContent);
                 
                 firstNote.title = blogContent.title ; // mz + blogContent.title + mz;
-               
                 firstNote.tags = blogContent.categories;
-    
-                firstNote.content = replaceContentUrl( blogContent.description , blog );
+                firstNote.content = replaceContentUrl( storage.path , blogContent.description , blog , function(){
 
- 
+                    firstNote.content = replaceContentUrl( storage.path , blogContent.description , blog );
 
-                dataApi
-                    .updateNote(firstNote.storage, firstNote.key, firstNote)
-                    .then((note) => {
-                        dispatch({
-                            type: 'UPDATE_NOTE',
-                            note: note
-                        });
+                    that.saveAndRefreshNote(firstNote);                    
+                });
 
-                        router.push({
-                            pathname: location.pathname,
-                            query: { key: note.key  }
-                        });
-                    });
+                that.saveAndRefreshNote(firstNote);
+
+                 
             }, function (msg, error){
                 that.confirmError( msg , error );
             }
@@ -940,12 +966,12 @@ class NoteList extends React.Component {
         dialog.showMessageBox(remote.getCurrentWindow(), alertError)
     }
 
-    confirmPublish(note) {
+    confirmPublish(blogConfig, note) {
         const buttonIndex = dialog.showMessageBox(remote.getCurrentWindow(), {
             type: 'warning',
-            message: i18n.__('Publish Succeeded'),
-            detail: `${note.title} is published`,
-            buttons: [i18n.__('Confirm'), i18n.__('Open Blog')]
+            message: i18n.__('Publish to ' + blogConfig.address +  ' Succeeded!'),
+            detail: `${note.title}`,
+            buttons: [i18n.__('Confirm')]
         })
 
         if (buttonIndex === 1) {

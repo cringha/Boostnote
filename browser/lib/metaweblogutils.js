@@ -1,6 +1,11 @@
 import fs from 'fs'
-import path from 'path'
+import path from 'path';
+import http  from 'http';
+ 
+
+var crypto = require('crypto');
 var MetaWeblog = require('metaweblog-api');
+const IMAGE_REG = /!\[(.*?)\]\((.*)\)/gi;
 
 
 export function findBlogInNote(note, addr, postId) {
@@ -63,15 +68,31 @@ export function checkImageCache(blog, image, name) {
 
     for (var i = 0; i < blog.imageUrls.length; i++) {
         var im = blog.imageUrls[i];
-        if (im[name] == image)
+        if (im[name] == image) {
+
+            if( name === 'src') {
+                if( im.sha1 ){
+                    var csha1 = sha1File( im.src );
+                    if( csha1 == im.sha1 )
+                        return im ; 
+                    else {
+                        blog.imageUrls.splice(i,1); /// [i];
+                        return null;
+                    }
+                }
+            }
+
+             
+            
+
             return im;
+        }
     }
 
     return null;
 
 }
 
-const IMAGE_REG = /!\[(.*?)\]\((.*)\)/gi;
 
 
 // 从服务器更新 内容，刷新本地程序
@@ -130,30 +151,30 @@ export function findActiveBlogInNote(note, addr) {
 }
 
 
-export function findTitle( content , title ){
-     var reg = /^\s*#+\s+(.*)\s*/i;
+export function findTitle(content, title) {
+    var reg = /^\s*#+\s+(.*)\s*/i;
     // var patt1=new RegExp("e");
     // 
     var lines = str.trim().split('\n');
     for (var i = 0; i < lines.length; i++) {
         var line = lines[i];
         line = line.trim();
-        if(line.length > 0){
+        if (line.length > 0) {
             // 第一行 
-            
+
         }
     }
 }
 
 
-export function publishMarkdownContent (blogConfig, note, blog, success, err) {
+export function publishMarkdownContent(blogConfig, note, blog, success, err) {
 
     const { address, token, authMethod, username, password } = blogConfig;
     let blogId = null;
 
     blogId = blog.blogId;
 
-   const contentToRender = note.content.replace(`# ${note.title}`, '')
+    const contentToRender = note.content.replace(`# ${note.title}`, '')
 
     // 将本地图片替换为 HTTP 图片
     let exportedData = contentToRender.replace(IMAGE_REG, (match, dstFilename, srcFilename) => {
@@ -219,6 +240,51 @@ export function publishMarkdownContent (blogConfig, note, blog, success, err) {
 }
 
 
+export function loadUserBlogs(blogConfig, notes, success, err) {
+
+    const { address, token, authMethod, username, password } = blogConfig;
+
+    // 'http://172.17.2.220:18080/solo/apis/metaweblog'; // use your blog API instead
+    var metaWeblog = new MetaWeblog(address);
+
+
+    var blogId = username; //  "liu.kang@siemens.com";
+
+    metaWeblog.getRecentPosts(blogId, username, password, 50)
+        .then(blogs => {
+            if (notes) {
+                for (var i = 0; i < blogs.length; i++) {
+                    var blog = blogs[i];
+                    console.log(blog.postid, blog.title, blog.categories);
+
+                    if (notes) {
+                        var note = findNoteByPostId(notes, address, blog.postid);
+                        if (note) {
+                            blog.local = note;
+                            blog.localTitle = note.title;
+                        }
+                    }
+
+                }
+            }
+
+            success(blogs);
+        })
+        .catch(error => {
+            console.log(error);
+            err(error);
+        });
+}
+
+
+export function sha1File( file ){
+
+  var shasum = crypto.createHash('sha1');
+  var content = fs.readFileSync(file);
+    shasum.update(content);
+    return shasum.digest('hex');
+}
+
 // publish markdown &images to weblog 
 export function uploadMarkdownImages(blogConfig, note, success, error) {
 
@@ -271,13 +337,16 @@ export function uploadMarkdownImages(blogConfig, note, success, error) {
                             imageContent = new Buffer(imageContent);
                         }
                     }
+
+
+
                     var image = {
                         name: file,
                         //          type : 'image/png',
                         bits: imageContent // { base64 : base64file}
 
                     };
-                    console.log('upload image ' , file );
+                    console.log('upload image ', file);
                     // 
                     var p = metaWeblog.newMediaObject('', username, password, image, true);
                     tasks.push(p);
@@ -301,33 +370,88 @@ export function uploadMarkdownImages(blogConfig, note, success, error) {
                     var file = ims[i];
                     if (file) {
                         if (!blog.imageUrls) blog.imageUrls = [];
+
+                        var sha1val = sha1File(file);
+
                         blog.imageUrls.push({
                             src: file,
+                            sha1: sha1val,
                             url: ret.url
                         });
                     }
                 }
-                success( note, blog);
+                success(note, blog);
 
             }).catch(err => {
                 console.log(err)
                 error(err);
             });
     } else {
-        success( note, blog);
+        success(note, blog);
     }
 
 }
 
-export function replaceContentUrl(content , localBlog) {
+ 
 
-    if (content && localBlog && localBlog.imageUrls ) {
+function randName(){
+    return crypto.randomBytes(10).toString('hex');
+}
+
+export function replaceContentUrl(base, content, localBlog , cb ) {
+
+    // https 
+
+    if (content && localBlog && localBlog.imageUrls) {
         // 将远程服务器图片替换为本地 图片，如果有的话
         let exportedData = content.replace(IMAGE_REG, (match, dstFilename, srcFilename) => {
             var im = checkImageCache(localBlog, srcFilename, 'url');
             if (im) {
                 srcFilename = im.src;
+            }else {
+
+                if (srcFilename.match(/^http/i)) {
+                     
+              
+
+                    const imageDir = path.join(base, 'images')
+                    if (!fs.existsSync(imageDir)) fs.mkdirSync(imageDir)
+                    
+
+                    var request = http.get(srcFilename, function(response) {
+
+                        const imageExt = path.extname(srcFilename);
+                        var localFile = path.join(imageDir, 'cache-' + randName() + imageExt ) ;
+                        var file = fs.createWriteStream(localFile);
+
+                        console.log('download file ' + srcFilename + ' save to ' + localFile);
+
+                        response.pipe(file);
+                        file.on('finish', function() {
+                           file.close( function(){
+                                var csha1 = sha1File(localFile );
+                                localBlog.imageUrls.push({
+                                    src: localFile,
+                                    sha1: csha1,
+                                    url: srcFilename
+                                });
+
+                                if(cb){
+                                    cb();
+                                }
+
+                           });  // close() is async, call cb after close completes.
+
+                        });
+
+                    }).on('error', function(err) { // Handle errors
+                        console.log(err)
+                    })   ;
+                }
+               
             }
+
+
             return `![${dstFilename}](${srcFilename})`;
 
         });
@@ -347,5 +471,6 @@ export default {
     findActiveBlogInNote,
     uploadMarkdownImages,
     publishMarkdownContent,
-    replaceContentUrl
+    replaceContentUrl,
+    loadUserBlogs
 }

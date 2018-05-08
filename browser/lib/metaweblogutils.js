@@ -206,7 +206,7 @@ export function publishMarkdownContent(blogConfig, note, blog, success, err) {
     });
 
 
-    if( blogConfig ){
+    if( blogConfig.markdown !== true ){
         const markdown = new Markdown();
         exportedData = markdown.render(exportedData);
 

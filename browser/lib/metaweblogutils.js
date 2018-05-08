@@ -1,10 +1,12 @@
 import fs from 'fs'
 import path from 'path';
 import http  from 'http';
- 
+import Markdown from './markdown' 
 
 var crypto = require('crypto');
-var MetaWeblog = require('metaweblog-api');
+// var MetaWeblog = require('metaweblog-api');
+import MetaWeblog from 'browser/lib/metaweblogapi';
+
 const IMAGE_REG = /!\[(.*?)\]\((.*)\)/gi;
 
 
@@ -149,6 +151,24 @@ export function findActiveBlogInNote(note, addr) {
     }
     return blog;
 }
+export function removeActiveBlogInNote(note, addr) {
+    var address = addr;
+
+    if( !addr )
+        return false;
+
+    if (!Array.isArray(note.blog))
+        return false;
+
+    for (var i = 0; i < note.blog.length; i++) {
+        if(note.blog[i].address === addr ){
+            note.blog.splice( i, 1 );
+            return true;
+        }
+    }
+    return false;
+    
+}
 
 
 export function findTitle(content, title) {
@@ -186,6 +206,11 @@ export function publishMarkdownContent(blogConfig, note, blog, success, err) {
     });
 
 
+    if( blogConfig ){
+        const markdown = new Markdown();
+        exportedData = markdown.render(exportedData);
+
+    }
 
     var post = {
         title: note.title,
@@ -202,13 +227,20 @@ export function publishMarkdownContent(blogConfig, note, blog, success, err) {
             .then(blogId2 => {
                 // handle the blog information here
 
+
                 console.log('after EditPost ' + blogId + ' ' + username + ' ' + post.title + ' new id ' + blogId2);
 
                 if (_.isNil(blogId2)) {
                     return Promise.reject()
                 }
 
-                success(blogId2);
+                if( typeof blogId2 == 'string') {
+                    success(blogId2);    
+                }else {
+
+                }
+
+                
 
             })
             .catch(error => {
@@ -342,7 +374,7 @@ export function uploadMarkdownImages(blogConfig, note, success, error) {
 
                     var image = {
                         name: file,
-                        //          type : 'image/png',
+                        type : 'image/png',
                         bits: imageContent // { base64 : base64file}
 
                     };
@@ -472,5 +504,6 @@ export default {
     uploadMarkdownImages,
     publishMarkdownContent,
     replaceContentUrl,
-    loadUserBlogs
+    loadUserBlogs,
+    removeActiveBlogInNote
 }

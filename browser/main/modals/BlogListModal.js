@@ -10,7 +10,7 @@ const { remote } = require('electron');
 const { Menu, MenuItem, dialog } = remote;
 
 import i18n from 'browser/lib/i18n'
-var MetaWeblog = require('metaweblog-api');
+
 import ConfigManager from 'browser/main/lib/ConfigManager';
 import {downloadBlogById  , findActiveBlogInNote , replaceContentUrl ,findNoteByPostId ,loadUserBlogs } from 'browser/lib/metaweblogutils'
 

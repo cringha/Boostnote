@@ -20,13 +20,13 @@ import AwsMobileAnalyticsConfig from 'browser/main/lib/AwsMobileAnalyticsConfig'
 import Markdown from '../../lib/markdown'
 import i18n from 'browser/lib/i18n'
 import { confirmDeleteNote } from 'browser/lib/confirmDeleteNote'
-var MetaWeblog = require('metaweblog-api');
+
 import { formatDate } from 'browser/lib/date-formatter';
 const { remote } = require('electron')
 const { Menu, MenuItem, dialog } = remote
 
 
-import {downloadBlogById , checkImageCache , searchImages , findActiveBlogInNote , uploadMarkdownImages , publishMarkdownContent , replaceContentUrl} from 'browser/lib/metaweblogutils'
+import {downloadBlogById , checkImageCache , searchImages , findActiveBlogInNote , uploadMarkdownImages , publishMarkdownContent , replaceContentUrl , removeActiveBlogInNote} from 'browser/lib/metaweblogutils'
 
 
 import { openModal } from 'browser/main/lib/modal'
@@ -501,6 +501,7 @@ class NoteList extends React.Component {
         const publishLabel = i18n.__('Publish Blog')
         const updateLabel = i18n.__('Update Blog')
         const openBlogLabel = i18n.__('Open Blog');
+        const unbindLabel = i18n.__('Unbind Blog');
         const fetchBlogLabel = i18n.__('Download Blog')
 
         const menu = new Menu()
@@ -553,6 +554,10 @@ class NoteList extends React.Component {
                     menu.append(new MenuItem({
                         label: openBlogLabel,
                         click: () => this.openBlog.bind(this)(note)
+                    }));
+                    menu.append(new MenuItem({
+                        label: unbindLabel,
+                        click: () => this.unbindNote.bind(this)(note)
                     }));
 
                 } else {
@@ -741,7 +746,23 @@ class NoteList extends React.Component {
         }, 200)
     }
 
+    unbindNote() {
+        const { selectedNoteKeys } = this.state
+        const notes = this.notes.map((note) => Object.assign({}, note))
+        const selectedNotes = findNotesByKeys(notes, selectedNoteKeys)
+        const firstNote = selectedNotes[0]
+        const config = ConfigManager.get();
+        const { address, token, authMethod, username, password } = config.blog;
+         
+        if(removeActiveBlogInNote( firstNote , address )){
+            this.saveAndRefreshNote(firstNote);      
+        }
+        
 
+    }
+
+
+ 
  
 
 
@@ -768,7 +789,9 @@ class NoteList extends React.Component {
         var that = this;
         
         publishMarkdownContent( config.blog , note , blog  , function(blogId2){
-                blog.blogId = blogId2;
+                if(blogId2!=undefined && blogId2 != null && typeof blogId2 == 'string')
+                    blog.blogId = blogId2;
+
                 that.save(note);
                 that.confirmPublish( config.blog , note);
             } , 

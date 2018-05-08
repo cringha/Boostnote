@@ -11,83 +11,88 @@ const electron = require('electron')
 const { shell } = electron
 const ipc = electron.ipcRenderer
 class Blog extends React.Component {
-  constructor (props) {
-    super(props)
+  constructor(props) {
+      super(props)
 
-    this.state = {
-      config: props.config,
-      BlogAlert: null
-    }
+      this.state = {
+          config: props.config,
+          BlogAlert: null
+      }
   }
 
-  handleLinkClick (e) {
-    shell.openExternal(e.currentTarget.href)
-    e.preventDefault()
+  handleLinkClick(e) {
+      shell.openExternal(e.currentTarget.href)
+      e.preventDefault()
   }
 
-  clearMessage () {
-    _.debounce(() => {
+  clearMessage() {
+      _.debounce(() => {
+          this.setState({
+              BlogAlert: null
+          })
+      }, 2000)()
+  }
+
+  componentDidMount() {
+      this.handleSettingDone = () => {
+          this.setState({
+              BlogAlert: {
+                  type: 'success',
+                  message: i18n.__('Successfully applied!')
+              }
+          })
+      }
+      this.handleSettingError = (err) => {
+          this.setState({
+              BlogAlert: {
+                  type: 'error',
+                  message: err.message != null ? err.message : i18n.__('Error occurs!')
+              }
+          })
+      }
+      this.oldBlog = this.state.config.blog
+      ipc.addListener('APP_SETTING_DONE', this.handleSettingDone)
+      ipc.addListener('APP_SETTING_ERROR', this.handleSettingError)
+  }
+
+  handleBlogChange(e) {
+      const { config } = this.state
+      config.blog = {
+          password: !_.isNil(this.refs.passwordInput) ? this.refs.passwordInput.value : config.blog.password,
+          username: !_.isNil(this.refs.usernameInput) ? this.refs.usernameInput.value : config.blog.username,
+          markdown: !_.isNil(this.refs.markdownInput) ? this.refs.markdownInput.checked : config.blog.markdown,
+          token: !_.isNil(this.refs.tokenInput) ? this.refs.tokenInput.value : config.blog.token,
+          authMethod: this.refs.authMethodDropdown.value,
+          address: this.refs.addressInput.value,
+          type: this.refs.typeDropdown.value
+      }
       this.setState({
-        BlogAlert: null
+          config
       })
-    }, 2000)()
+      if (_.isEqual(this.oldBlog, config.blog)) {
+          this.props.haveToSave()
+      } else {
+          this.props.haveToSave({
+              tab: 'Blog',
+              type: 'warning',
+              message: i18n.__('You have to save!')
+          })
+      }
   }
 
-  componentDidMount () {
-    this.handleSettingDone = () => {
-      this.setState({BlogAlert: {
-        type: 'success',
-        message: i18n.__('Successfully applied!')
-      }})
-    }
-    this.handleSettingError = (err) => {
-      this.setState({BlogAlert: {
-        type: 'error',
-        message: err.message != null ? err.message : i18n.__('Error occurs!')
-      }})
-    }
-    this.oldBlog = this.state.config.blog
-    ipc.addListener('APP_SETTING_DONE', this.handleSettingDone)
-    ipc.addListener('APP_SETTING_ERROR', this.handleSettingError)
-  }
+  handleSaveButtonClick(e) {
+      const newConfig = {
+          blog: this.state.config.blog
+      }
 
-  handleBlogChange (e) {
-    const { config } = this.state
-    config.blog = {
-      password: !_.isNil(this.refs.passwordInput) ? this.refs.passwordInput.value : config.blog.password,
-      username: !_.isNil(this.refs.usernameInput) ? this.refs.usernameInput.value : config.blog.username,
-      token: !_.isNil(this.refs.tokenInput) ? this.refs.tokenInput.value : config.blog.token,
-      authMethod: this.refs.authMethodDropdown.value,
-      address: this.refs.addressInput.value,
-      type: this.refs.typeDropdown.value
-    }
-    this.setState({
-      config
-    })
-    if (_.isEqual(this.oldBlog, config.blog)) {
+      ConfigManager.set(newConfig)
+
+      store.dispatch({
+          type: 'SET_UI',
+          config: newConfig
+      })
+      this.clearMessage()
       this.props.haveToSave()
-    } else {
-      this.props.haveToSave({
-        tab: 'Blog',
-        type: 'warning',
-        message: i18n.__('You have to save!')
-      })
-    }
-  }
-
-  handleSaveButtonClick (e) {
-    const newConfig = {
-      blog: this.state.config.blog
-    }
-
-    ConfigManager.set(newConfig)
-
-    store.dispatch({
-      type: 'SET_UI',
-      config: newConfig
-    })
-    this.clearMessage()
-    this.props.haveToSave()
   }
 
   render () {
@@ -112,6 +117,7 @@ class Blog extends React.Component {
                 onChange={(e) => this.handleBlogChange(e)}
               >
                 <option value='wordpress' key='wordpress'>{i18n.__('wordpress')}</option>
+                <option value='metaWeblogApi' key='metaWeblogApi'>{i18n.__('metaWeblogApi')}</option>
               </select>
             </div>
           </div>
@@ -182,6 +188,17 @@ class Blog extends React.Component {
                   ref='passwordInput'
                   value={config.blog.password}
                   type='password' />
+              </div>
+            </div>
+            <div styleName='group-section'>
+              <div styleName='group-section-label'>{i18n.__('Markdown')}</div>
+              <div styleName='group-section-control'>
+                <input styleName='group-section-control-input'
+                  onChange={(e) => this.handleBlogChange(e)}
+                  ref='markdownInput'
+                  checked={config.blog.markdown}
+                  
+                  type='checkbox' />
               </div>
             </div>
           </div>

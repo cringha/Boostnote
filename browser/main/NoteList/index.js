@@ -26,8 +26,7 @@ const { remote } = require('electron')
 const { Menu, MenuItem, dialog } = remote
 
 
-import {downloadBlogById , checkImageCache , searchImages , findActiveBlogInNote , uploadMarkdownImages , publishMarkdownContent , replaceContentUrl , removeActiveBlogInNote} from 'browser/lib/metaweblogutils'
-
+import MetaWeblogUtils from 'browser/lib/metaweblogutils'
 
 import { openModal } from 'browser/main/lib/modal'
 import PreferencesModal from '../modals/PreferencesModal'
@@ -538,7 +537,7 @@ class NoteList extends React.Component {
                 const config = ConfigManager.get();
                 const { address, token, authMethod, username, password } = config.blog ;
                 
-                var blog = findActiveBlogInNote( note , address);
+                var blog = MetaWeblogUtils.findBlogInNote( note , address);
 
                 if ( blog && blog.blogId ) {
                     menu.append(new MenuItem({
@@ -754,7 +753,7 @@ class NoteList extends React.Component {
         const config = ConfigManager.get();
         const { address, token, authMethod, username, password } = config.blog;
          
-        if(removeActiveBlogInNote( firstNote , address )){
+        if(MetaWeblogUtils.removeBlogInNote( firstNote , address )){
             this.saveAndRefreshNote(firstNote);      
         }
         
@@ -778,22 +777,20 @@ class NoteList extends React.Component {
 
 
     // publish markdown content 
-    publishMarkdownContentMetaWeblogApi( note, blog ) {
-        const config = ConfigManager.get();
-        const { address, token, authMethod, username, password } = config.blog
-
+    publishMarkdownContentMetaWeblogApi( client, note, blog ) {
+         
         let blogId = null;
 
         blogId = blog.blogId;
  
         var that = this;
         
-        publishMarkdownContent( config.blog , note , blog  , function(blogId2){
+        client.publishMarkdownContent(  note , blog  , function(blogId2){
                 if(blogId2!=undefined && blogId2 != null && typeof blogId2 == 'string')
                     blog.blogId = blogId2;
 
                 that.save(note);
-                that.confirmPublish( config.blog , note);
+                that.confirmPublish(   note);
             } , 
             function(err){
                 that.confirmPublishError(err);
@@ -814,12 +811,14 @@ class NoteList extends React.Component {
         const config = ConfigManager.get()
    
         var that = this;
+
+        var client = new MetaWeblogUtils.MetaWeblogClient(config.blog);
     
 
-        uploadMarkdownImages( config.blog , firstNote , 
+        client.uploadMarkdownImages(  firstNote , 
             function( note, blog1 ){
             
-                that.publishMarkdownContentMetaWeblogApi( note, blog1 );
+                that.publishMarkdownContentMetaWeblogApi( client, note, blog1 );
 
             }, 
             function(error){
@@ -872,12 +871,13 @@ class NoteList extends React.Component {
         const selectedNotes = findNotesByKeys(notes, selectedNoteKeys)
         const firstNote = selectedNotes[0]
         const config = ConfigManager.get()
-        const { address, token, authMethod, username, password } = config.blog
+        // const { address, token, authMethod, username, password } = config.blog
         const { router } = this.context;
         const { storage, folder } = this.resolveTargetFolder();
 
-        const { dispatch, location } = this.props
-        var blog = findActiveBlogInNote( firstNote , address );
+        const { dispatch, location } = this.props;
+
+        var blog = MetaWeblogUtils.findBlogInNote( firstNote , config.blog.address );
         if(!blog || !blog.blogId ) {
             console.log('blogId is empty ' + firstNote.title );
             return ;
@@ -885,19 +885,24 @@ class NoteList extends React.Component {
 
 
         var that = this;
+        var client = new MetaWeblogUtils.MetaWeblogClient(config.blog);
 
-        downloadBlogById( config.blog , blog.blogId , 
+
+        client.downloadBlogById(  blog.blogId , 
             function( blogContent ){
                 console.log(blogContent);
                 
                 firstNote.title = blogContent.title ; // mz + blogContent.title + mz;
-                firstNote.tags = blogContent.categories;
-                firstNote.content = replaceContentUrl( storage.path , blogContent.description , blog , function(){
+                firstNote.tags  = blogContent.categories;
+                firstNote.content =   blogContent.description;
 
-                    firstNote.content = replaceContentUrl( storage.path , blogContent.description , blog );
+                firstNote.content = MetaWeblogUtils.replaceContentUrl( storage.path , firstNote.content , blog , 
+                    function(){
 
-                    that.saveAndRefreshNote(firstNote);                    
-                });
+                        firstNote.content = MetaWeblogUtils.replaceContentUrl( storage.path , firstNote.content , blog );
+                        that.saveAndRefreshNote(firstNote);                    
+                    }
+                );
 
                 that.saveAndRefreshNote(firstNote);
 
@@ -989,10 +994,10 @@ class NoteList extends React.Component {
         dialog.showMessageBox(remote.getCurrentWindow(), alertError)
     }
 
-    confirmPublish(blogConfig, note) {
+    confirmPublish(  note) {
         const buttonIndex = dialog.showMessageBox(remote.getCurrentWindow(), {
             type: 'warning',
-            message: i18n.__('Publish to ' + blogConfig.address +  ' Succeeded!'),
+            message: i18n.__('Publish Note Succeeded!'),
             detail: `${note.title}`,
             buttons: [i18n.__('Confirm')]
         })

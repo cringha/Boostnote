@@ -7,9 +7,15 @@ import PropTypes from 'prop-types'
 import _ from 'lodash'
 import i18n from 'browser/lib/i18n'
 
+import MetaWeblogUtils from 'browser/lib/metaweblogutils';
+
 const electron = require('electron')
 const { shell } = electron
-const ipc = electron.ipcRenderer
+const ipc = electron.ipcRenderer;
+
+
+ 
+  
 class Blog extends React.Component {
   constructor(props) {
       super(props)
@@ -85,14 +91,36 @@ class Blog extends React.Component {
           blog: this.state.config.blog
       }
 
-      ConfigManager.set(newConfig)
+   
+      var client = new MetaWeblogUtils.MetaWeblogClient(newConfig.blog);
+      client.getBlogId()
+        .then(blogs => {
 
-      store.dispatch({
-          type: 'SET_UI',
-          config: newConfig
-      })
-      this.clearMessage()
-      this.props.haveToSave()
+            var blogInfo = blogs ;
+            if( Array.isArray(blogs) && blogs.length > 0)
+                blogInfo = blogs[0] ;
+
+            newConfig.blog.blogid = blogInfo.blogid ;
+            newConfig.blog.blogName = blogInfo.blogName ;
+            newConfig.blog.blogUrl = blogInfo.url ;
+            
+            ConfigManager.set(newConfig)
+
+            store.dispatch({
+                  type: 'SET_UI',
+                  config: newConfig
+            })
+            this.clearMessage()
+            this.props.haveToSave()
+        })
+        .catch(error => {
+            console.log(error);
+            this.handleSettingError(error);
+        });
+      
+
+
+      
   }
 
   render () {

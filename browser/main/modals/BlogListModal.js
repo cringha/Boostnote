@@ -12,7 +12,7 @@ const { Menu, MenuItem, dialog } = remote;
 import i18n from 'browser/lib/i18n'
 
 import ConfigManager from 'browser/main/lib/ConfigManager';
-import {downloadBlogById  , findActiveBlogInNote , replaceContentUrl ,findNoteByPostId ,loadUserBlogs } from 'browser/lib/metaweblogutils'
+import MetaWeblogUtils from 'browser/lib/metaweblogutils'
 
 
 class BlogListModal extends React.Component {
@@ -55,10 +55,13 @@ class BlogListModal extends React.Component {
         }
 
 
-        showMessageBox(message) {
+        showMessageBox(message , error ) {
+            var msg = ''+ message ;
+            if( error )
+                msg = msg + "\n" + error ;
             dialog.showMessageBox(remote.getCurrentWindow(), {
                 type: 'warning',
-                message: ''+message,
+                message:  msg,
                 buttons: [i18n.__('OK')]
             })
         }
@@ -89,7 +92,7 @@ class BlogListModal extends React.Component {
         // new note 
         writeToNewNote(note , postId, address ){
             const { storage, folder } = this.resolveTargetFolder();
-             const { dispatch } = this.props;
+            const { dispatch } = this.props;
             const newNote = {
                 folder: folder.key,
                 type: 'MARKDOWN_NOTE',
@@ -98,7 +101,7 @@ class BlogListModal extends React.Component {
 
             newNote.title = note.title ; // mz + blogContent.title + mz;
             newNote.tags = note.categories;
-            newNote.content = "# " + note.title +"\n" +  note.description ; // 
+            newNote.content =    note.description ; // 
 
             var blog = {
                     address: address,
@@ -112,9 +115,9 @@ class BlogListModal extends React.Component {
             var that = this;
 
             // 将内容中http://.....image  url 图片下载，并替换
-            newNote.content = replaceContentUrl(storage.path, newNote.content , blog  , 
+            newNote.content = MetaWeblogUtils.replaceContentUrl(storage.path, newNote.content , blog  , 
                 function(){
-                    newNote.content = replaceContentUrl( storage.path , newNote.content , blog );
+                    newNote.content = MetaWeblogUtils.replaceContentUrl( storage.path , newNote.content , blog );
                     that.saveNote(newNote , storage.key);                    
                 }
             );
@@ -174,7 +177,7 @@ class BlogListModal extends React.Component {
             const { dispatch } = this.props;
             const { storage, folder } = this.resolveTargetFolder();
 
-            var blog = findActiveBlogInNote( oldNote , blogConfig.address );
+            var blog = MetaWeblogUtils.findBlogInNote( oldNote , blogConfig.address );
             if(!blog ) {
                 blog = {} ;
             }
@@ -185,12 +188,15 @@ class BlogListModal extends React.Component {
             // var mz = new Date();
             oldNote.title =   blogContent.title ; // mz + blogContent.title + mz;
             oldNote.tags = blogContent.categories;
-            oldNote.content = "# " + blogContent.title +"\n\n\n\n" + blogContent.description;
-            oldNote.content =   replaceContentUrl(storage.path, blogContent.content , blog  , function(){
+            oldNote.content =  blogContent.description;
 
-                oldNote.content = replaceContentUrl( storage.path , blogContent.content , blog );
-                that.saveNote(oldNote);                    
-            });
+
+            oldNote.content =   MetaWeblogUtils.replaceContentUrl(storage.path, blogContent.content , blog  , 
+                function(){
+                    oldNote.content = MetaWeblogUtils.replaceContentUrl( storage.path , blogContent.content , blog );
+                    that.saveNote(oldNote);                    
+                }
+            );
 
 
 
@@ -210,6 +216,9 @@ class BlogListModal extends React.Component {
                 console.log('postid is empty ' , blog );
                 return ;
             }
+
+            var client = new MetaWeblogUtils.MetaWeblogClient(config.blog);
+
             var that = this;
             if( blog.local ){
                 const buttonIndex = dialog.showMessageBox(remote.getCurrentWindow(), {
@@ -222,7 +231,7 @@ class BlogListModal extends React.Component {
                 if (buttonIndex === 0 ) {
                     return ;
                 }
-                downloadBlogById( config.blog , blog.postid , 
+                client.downloadBlogById(  blog.postid , 
                     function( blogContent ){
                         console.log(blogContent);
                         if( buttonIndex === 1   ) {
@@ -236,7 +245,8 @@ class BlogListModal extends React.Component {
                         }
 
                     }, function (msg, error){
-                            console.log(msg, error);
+                        that.showMessageBox(msg, error);
+
                     }
                 );
                 
@@ -258,7 +268,7 @@ class BlogListModal extends React.Component {
                     if (buttonIndex === 0 ) {
                         return ;
                     }
-                    downloadBlogById( config.blog , blog.postid , 
+                    client.downloadBlogById(  blog.postid , 
                         function( blogContent ){
                             console.log(blogContent);
                             if( buttonIndex === 1   ) {
@@ -272,7 +282,7 @@ class BlogListModal extends React.Component {
                             }
 
                         }, function (msg, error){
-                                console.log(msg, error);
+                            that.showMessageBox(msg, error);
                         }
                     );
                 }else {
@@ -287,13 +297,13 @@ class BlogListModal extends React.Component {
                     if (buttonIndex === 0 ) {
                         return ;
                     }
-                    downloadBlogById( config.blog , blog.postid , 
+                    client.downloadBlogById(   blog.postid , 
                         function( blogContent ){
                             console.log(blogContent);
                             that.writeToNewNote( blogContent  , blog.postid , config.blog.address);
 
                         }, function (msg, error){
-                                console.log(msg, error);
+                            that.showMessageBox(msg, error);
                         }
                     );
                 }
@@ -312,15 +322,15 @@ class BlogListModal extends React.Component {
 
         loadBlogs() {
             const config = ConfigManager.get();
-            const { address, token, authMethod, username, password } = config.blog
-
-            // 'http://172.17.2.220:18080/solo/apis/metaweblog'; // use your blog API instead
-           
+              
             var {notes} = this.props ;
           
             var that = this;
 
-            loadUserBlogs( config.blog , notes , function(blogs){
+            var client = new MetaWeblogUtils.MetaWeblogClient(config.blog);
+
+
+            client.loadUserBlogs(  notes , function(blogs){
                 that.setState({blogs : blogs });
             }, function(error){
                 that.showMessageBox(error);
@@ -378,7 +388,12 @@ class BlogListModal extends React.Component {
                 <td styleName="td" > {blog.postid} </td>
                 <td styleName="td" > 
                     
-                        { this.getBlogTitle(blog)  }  
+                        { blog.title  }  
+                     
+                </td>
+                <td styleName="td" > 
+                    
+                        { blog.local ? blog.local.title : ''  }  
                      
                 </td>
                 <td styleName="td" > { this.tagsToString(blog.categories) }  </td>
@@ -413,6 +428,7 @@ class BlogListModal extends React.Component {
             <tr styleName="th">
                 <td styleName="td"> ID </td>
                 <td styleName="td"> Title </td>
+                <td styleName="td"> Local </td>
                 <td styleName="td"> Tags </td>
                 <td styleName="td"> Download </td>
             </tr>

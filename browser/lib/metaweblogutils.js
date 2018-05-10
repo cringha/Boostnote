@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path';
-import http  from 'http';
-import Markdown from './markdown' 
+import http from 'http';
+import Markdown from './markdown'
 const xmlrpc = require('xmlrpc');
 
 var crypto = require('crypto');
@@ -9,26 +9,26 @@ var crypto = require('crypto');
 const IMAGE_REG = /!\[(.*?)\]\((.*)\)/gi;
 
 
-function MetaWeblog( opts ) {
-    var address = opts.address ;
-    var client = null ;
-    var opts   = opts;
-    var blogId = opts.blogid ;
+function MetaWeblog(opts) {
+    var address = opts.address;
+    var client = null;
+    var opts = opts;
+    var blogId = opts.blogid;
 
     if (typeof address === 'string') {
         if (address.match(/^https/i)) {
-            client = xmlrpc.createSecureClient(address);    
-        }else {
-            client = xmlrpc.createClient(address);    
+            client = xmlrpc.createSecureClient(address);
+        } else {
+            client = xmlrpc.createClient(address);
         }
 
-    }else {
-        client = xmlrpc.createClient(address);    
+    } else {
+        client = xmlrpc.createClient(address);
     }
 
     function methodCall(methodName, params) {
-        return new Promise(function (resolve, reject) {
-            client.methodCall(methodName, params, function (error, data) {
+        return new Promise(function(resolve, reject) {
+            client.methodCall(methodName, params, function(error, data) {
                 if (!error) {
                     resolve(data);
                 } else {
@@ -38,59 +38,59 @@ function MetaWeblog( opts ) {
         });
     }
 
-    this.getUsersBlogs = function (appKey ) {
+    this.getUsersBlogs = function(appKey) {
         return methodCall('blogger.getUsersBlogs', [appKey, opts.username, opts.password]);
     };
-    this.getRecentPosts = function (  numberOfPosts) {
+    this.getRecentPosts = function(numberOfPosts) {
         return methodCall('metaWeblog.getRecentPosts', [blogId, opts.username, opts.password, numberOfPosts]);
     };
 
-    this.getCategories = function (  ) {
+    this.getCategories = function() {
         return methodCall('metaWeblog.getCategories', [blogId, opts.username, opts.password]);
     };
 
-    this.getPost = function (postid ) {
+    this.getPost = function(postid) {
         return methodCall('metaWeblog.getPost', [postid, opts.username, opts.password]);
     };
-    this.editPost = function (postid,   post, publish) {
+    this.editPost = function(postid, post, publish) {
         return methodCall('metaWeblog.editPost', [postid, opts.username, opts.password, post, publish]);
     };
 
-    this.newPost = function ( post, publish) {
+    this.newPost = function(post, publish) {
         return methodCall('metaWeblog.newPost', [blogId, opts.username, opts.password, post, publish]);
     };
 
-    this.deletePost = function (appKey, postid,  publish) {
+    this.deletePost = function(appKey, postid, publish) {
         return methodCall('blogger.deletePost', [appKey, postid, opts.username, opts.password, publish]);
     };
 
-    this.newMediaObject = function ( mediaObject) {
-        return methodCall('metaWeblog.newMediaObject', [blogId, opts.username, opts.password,  mediaObject]);
+    this.newMediaObject = function(mediaObject) {
+        return methodCall('metaWeblog.newMediaObject', [blogId, opts.username, opts.password, mediaObject]);
     };
 };
 
 
 
-class MetaWeblogClient{
+class MetaWeblogClient {
 
-    constructor(blogConfig){
+    constructor(blogConfig) {
 
-        this.opts = blogConfig ;
-        this.appKey = blogConfig.appKey ;
-        this.address = blogConfig.address ;
+        this.opts = blogConfig;
+        this.appKey = blogConfig.appKey;
+        this.address = blogConfig.address;
         this.username = blogConfig.username;
         this.client = new MetaWeblog(blogConfig);
     }
 
-    
 
-    getBlogId (){
-        return this.client.getUsersBlogs( this.appKey );
+
+    getBlogId() {
+        return this.client.getUsersBlogs(this.appKey);
     }
 
-   
+
     // 'http://172.17.2.220:18080/solo/apis/metaweblog'; // use your blog API instead
- 
+
 
 
 
@@ -100,20 +100,20 @@ class MetaWeblogClient{
      * @param  {[type]} blogConfig [description]
      * @return {[type]}            [description]
      */
-    downloadBlogById( blogId, success, err) {
+    downloadBlogById(blogId, success, err) {
 
-         // 'http://172.17.2.220:18080/solo/apis/metaweblog'; // use your blog API instead
+        // 'http://172.17.2.220:18080/solo/apis/metaweblog'; // use your blog API instead
         // console.log("Fetch blog from " + address + " " + username + " blogId is " + blogId);
         // var metaWeblog = new MetaWeblog(address);
 
-        this.client.getPost(blogId )
+        this.client.getPost(blogId)
             .then(blogContent => {
                 console.log(blogContent);
 
-                 
 
-                if( !hasTitle( blogContent.description , blogContent.title )) {
-                    blogContent.description = "# " + blogContent.title +"\n\n" + blogContent.description;
+
+                if (!hasTitle(blogContent.description, blogContent.title)) {
+                    blogContent.description = "# " + blogContent.title + "\n\n" + blogContent.description;
                 }
 
 
@@ -146,20 +146,26 @@ class MetaWeblogClient{
 
 
 
+    /**
+     * @param  {note}
+     * @param  {[type]}
+     * @param  {[type]}
+     * @param  {[type]}
+     * @return {[type]}
+     */
+    publishMarkdownContent(note, blog, success, err) {
 
-    publishMarkdownContent ( note, blog, success, err) {
-
-//       const { address, token, authMethod, username, password } = blogConfig;
+        //       const { address, token, authMethod, username, password } = blogConfig;
         let blogId = null;
 
         blogId = blog.blogId;
 
         // get first line ;
 
-        let noteContent = note.content ;
+        let noteContent = note.content;
 
-        if( hasTitle( noteContent, note.title )) {
-            noteContent =  trimFirstLine( noteContent );
+        if (hasTitle(noteContent, note.title)) {
+            noteContent = trimFirstLine(noteContent);
         }
 
 
@@ -175,7 +181,7 @@ class MetaWeblogClient{
         });
 
 
-        if( this.opts.markdown !== true ){
+        if (this.opts.markdown !== true) {
             const markdown = new Markdown();
             exportedData = markdown.render(exportedData);
 
@@ -192,7 +198,7 @@ class MetaWeblogClient{
 
         if (blogId) {
             console.log('editPost ' + blogId + ' ' + this.username + ' ' + post.title);
-            this.client.editPost(blogId,  post, true)
+            this.client.editPost(blogId, post, true)
                 .then(blogId2 => {
                     // handle the blog information here
 
@@ -203,13 +209,13 @@ class MetaWeblogClient{
                         return Promise.reject()
                     }
 
-                    if( typeof blogId2 == 'string') {
-                        success(blogId2);    
-                    }else {
+                    if (typeof blogId2 == 'string') {
+                        success(blogId2);
+                    } else {
 
                     }
 
-                    
+
 
                 })
                 .catch(error => {
@@ -219,7 +225,7 @@ class MetaWeblogClient{
 
         } else {
             console.log('newPost ' + blogId + ' ' + this.username + ' ' + post.title);
-            this.client.newPost( post, true)
+            this.client.newPost(post, true)
                 .then(blogId2 => {
                     // handle the blog information here
 
@@ -241,9 +247,9 @@ class MetaWeblogClient{
     }
 
 
-    loadUserBlogs ( notes, success, err) {
-  
-        this.client.getRecentPosts( 50)
+    loadUserBlogs(notes, success, err) {
+
+        this.client.getRecentPosts(50)
             .then(blogs => {
                 if (notes) {
                     for (var i = 0; i < blogs.length; i++) {
@@ -274,22 +280,13 @@ class MetaWeblogClient{
 
 
     // publish markdown &images to weblog 
-    uploadMarkdownImages ( note, success, error) {
+    uploadMarkdownImages(note, success, error) {
 
-     //   const { address, token, authMethod, username, password } = blogConfig
-
-        const contentToRender = note.content.replace(`# ${note.title}`, '')
-
-
-        // 'http://172.17.2.220:18080/solo/apis/metaweblog'; // use your blog API instead
-       // var metaWeblog = new MetaWeblog(address);
-
+  
         var blog = findBlogInNote(note, this.address);
 
-
-
         // process local images ;
-        var list = searchImages(contentToRender, IMAGE_REG);
+        var list = searchImages(note.content, IMAGE_REG);
         var ims = [];
 
         var tasks = [];
@@ -330,13 +327,13 @@ class MetaWeblogClient{
 
                         var image = {
                             name: file,
-                            type : 'image/png',
+                        //    type: 'image/png',
                             bits: imageContent // { base64 : base64file}
 
                         };
                         console.log('upload image ', file);
                         // 
-                        var p = client.newMediaObject('', username, password, image, true);
+                        var p = this.client.newMediaObject(  image );
                         tasks.push(p);
                         ims.push(file);
 
@@ -380,274 +377,283 @@ class MetaWeblogClient{
 
     }
 
-   
+
 
 };
 
-    
-    /**
-      find blog local record in notes 
-    */
+
+/**
+  find blog local record in notes 
+*/
 export
-    function findNoteByPostId(notes, address, postId) {
-        for (var i = 0; i < notes.length; i++) {
-            var note = notes[i];
-            var blogz = findBlogInNote(note, address, postId);
-            if (blogz ){
-                if(blogz.blogId === postId  )
-                    return note;  
-            } 
-                
+
+function findNoteByPostId(notes, address, postId) {
+    for (var i = 0; i < notes.length; i++) {
+        var note = notes[i];
+        var blogz = findBlogInNote(note, address, postId);
+        if (blogz) {
+            if (blogz.blogId === postId)
+                return note;
         }
 
-        return null;
     }
 
-
- 
-    function findBlog(blogs, address) {
-        if (!blogs) return null;
-        return blogs.find((blog) => blog.address === address);
-
-    }
-     
-
-   function sha1File( file ){
-
-      var shasum = crypto.createHash('sha1');
-      var content = fs.readFileSync(file);
-        shasum.update(content);
-        return shasum.digest('hex');
-    }
+    return null;
+}
 
 
-    function  randName(){
-        return crypto.randomBytes(10).toString('hex');
-    }
+
+function findBlog(blogs, address) {
+    if (!blogs) return null;
+    return blogs.find((blog) => blog.address === address);
+
+}
 
 
-    // 检查 Blog Image cache中 有没有缓存的数据
+function sha1File(file) {
+
+    var shasum = crypto.createHash('sha1');
+    var content = fs.readFileSync(file);
+    shasum.update(content);
+    return shasum.digest('hex');
+}
+
+
+function randName() {
+    return crypto.randomBytes(10).toString('hex');
+}
+
+
+// 检查 Blog Image cache中 有没有缓存的数据
 export
-  function    checkImageCache(blog, image, name) {
-        if (!blog.imageUrls || blog.imageUrls.length == 0)
-            return null;
 
-        if (!name)
-            name = 'src';
+function checkImageCache(blog, image, name) {
+    if (!blog.imageUrls || blog.imageUrls.length == 0)
+        return null;
 
-        for (var i = 0; i < blog.imageUrls.length; i++) {
-            var im = blog.imageUrls[i];
-            if (im[name] == image) {
+    if (!name)
+        name = 'src';
 
-                if( name === 'src') {
-                    if( im.sha1 ){
-                        var csha1 = sha1File( im.src );
-                        if( csha1 == im.sha1 )
-                            return im ; 
-                        else {
-                            blog.imageUrls.splice(i,1); /// [i];
-                            return null;
-                        }
+    for (var i = 0; i < blog.imageUrls.length; i++) {
+        var im = blog.imageUrls[i];
+        if (im[name] == image) {
+
+            if (name === 'src') {
+                if (im.sha1) {
+                    var csha1 = sha1File(im.src);
+                    if (csha1 == im.sha1)
+                        return im;
+                    else {
+                        blog.imageUrls.splice(i, 1); /// [i];
+                        return null;
                     }
                 }
-                return im;
             }
+            return im;
         }
-        return null;
+    }
+    return null;
+}
+
+// get current action blog config ;
+export
+
+function findBlogInNote(note, addr) {
+    var address = addr;
+
+
+    if (!Array.isArray(note.blog))
+        note.blog = [];
+
+
+    var blog = findBlog(note.blog, address); // firstNote.blog ;
+    if (!blog) {
+        blog = {
+            address: address,
+            blogId: null,
+            url: null,
+            imageUrls: []
+        };
+        note.blog.push(blog);
     }
 
-    // get current action blog config ;
+
+    return blog;
+}
+
 export
-  function     findBlogInNote(note, addr) {
-        var address = addr;
 
+function removeBlogInNote(note, addr) {
+    var address = addr;
 
-        if (!Array.isArray(note.blog))
-            note.blog = [];
-
-
-        var blog = findBlog(note.blog, address); // firstNote.blog ;
-        if (!blog) {
-            blog = {
-                address: address,
-                blogId: null,
-                url: null,
-                imageUrls: []
-            };
-            note.blog.push(blog);
-        }
-
-
-        return blog;
-    }
-    
-export
-  function     removeBlogInNote(note, addr) {
-        var address = addr;
-
-        if( !addr )
-            return false;
-
-        if (!Array.isArray(note.blog))
-            return false;
-
-        for (var i = 0; i < note.blog.length; i++) {
-            if(note.blog[i].address === addr ){
-                note.blog.splice( i, 1 );
-                return true;
-            }
-        }
+    if (!addr)
         return false;
-        
-    }
 
- 
+    if (!Array.isArray(note.blog))
+        return false;
+
+    for (var i = 0; i < note.blog.length; i++) {
+        if (note.blog[i].address === addr) {
+            note.blog.splice(i, 1);
+            return true;
+        }
+    }
+    return false;
+
+}
+
+
 // 
 export
-  function  replaceContentUrl(base, content, localBlog , cb ) {
+
+function replaceContentUrl(base, content, localBlog, cb) {
 
     // https 
 
-        if (content && localBlog && localBlog.imageUrls) {
-            // 将远程服务器图片替换为本地 图片，如果有的话
-            let exportedData = content.replace(IMAGE_REG, (match, dstFilename, srcFilename) => {
-                var im = checkImageCache(localBlog, srcFilename, 'url');
-                if (im) {
-                    srcFilename = im.src;
-                }else {
+    if (content && localBlog && localBlog.imageUrls) {
+        // 将远程服务器图片替换为本地 图片，如果有的话
+        let exportedData = content.replace(IMAGE_REG, (match, dstFilename, srcFilename) => {
+            var im = checkImageCache(localBlog, srcFilename, 'url');
+            if (im) {
+                srcFilename = im.src;
+            } else {
 
-                    if (srcFilename.match(/^http/i)) {
-                         
-                  
+                if (srcFilename.match(/^http/i)) {
 
-                        const imageDir = path.join(base, 'images')
-                        if (!fs.existsSync(imageDir)) fs.mkdirSync(imageDir)
-                        
 
-                        var request = http.get(srcFilename, function(response) {
 
-                            const imageExt = path.extname(srcFilename);
-                            var localFile = path.join(imageDir, 'cache-' + randName() + imageExt ) ;
-                            var file = fs.createWriteStream(localFile);
+                    const imageDir = path.join(base, 'images')
+                    if (!fs.existsSync(imageDir)) fs.mkdirSync(imageDir)
 
-                            console.log('download file ' + srcFilename + ' save to ' + localFile);
 
-                            response.pipe(file);
-                            file.on('finish', function() {
-                               file.close( function(){
-                                    var csha1 = sha1File(localFile );
-                                    localBlog.imageUrls.push({
-                                        src: localFile,
-                                        sha1: csha1,
-                                        url: srcFilename
-                                    });
+                    var request = http.get(srcFilename, function(response) {
 
-                                    if(cb){
-                                        cb();
-                                    }
+                        const imageExt = path.extname(srcFilename);
+                        var localFile = path.join(imageDir, 'cache-' + randName() + imageExt);
+                        var file = fs.createWriteStream(localFile);
 
-                               });  // close() is async, call cb after close completes.
+                        console.log('download file ' + srcFilename + ' save to ' + localFile);
 
-                            });
+                        response.pipe(file);
+                        file.on('finish', function() {
+                            file.close(function() {
+                                var csha1 = sha1File(localFile);
+                                localBlog.imageUrls.push({
+                                    src: localFile,
+                                    sha1: csha1,
+                                    url: srcFilename
+                                });
 
-                        }).on('error', function(err) { // Handle errors
-                            console.log(err)
-                        })   ;
-                    }
-                   
+                                if (cb) {
+                                    cb();
+                                }
+
+                            }); // close() is async, call cb after close completes.
+
+                        });
+
+                    }).on('error', function(err) { // Handle errors
+                        console.log(err)
+                    });
                 }
 
-
-                return `![${dstFilename}](${srcFilename})`;
-
-            });
-            return exportedData;
-        } else {
-            return content;
-        }
+            }
 
 
+            return `![${dstFilename}](${srcFilename})`;
+
+        });
+        return exportedData;
+    } else {
+        return content;
     }
+
+
+}
 
 // exports = module.exports = MetaWeblogClient;
-    // 
+// 
 export
-  function    searchImages(content, regex) {
-        //  const regex = IMAGE_REG ; /// /\{\w+\}/g;
-        let m;
-        let array = [];
-        while ((m = regex.exec(content)) !== null) {
-            // This is necessary to avoid infinite loops with zero-width matches
-            if (m.index === regex.lastIndex) {
-                regex.lastIndex++;
-            }
-            var fx = m[0];
-            if (fx) {
-                var name = fx.substring(1, fx.length - 1);
-                // console.log( 'm0  ' + m[0] ); 
-                // console.log( 'm1  ' + m[1] ); 
-                // console.log( 'm2  ' + m[2] ); 
-                // console.log( '');
-                if (m[2])
-                    array.push(m[2]);
-            }
+
+function searchImages(content, regex) {
+    //  const regex = IMAGE_REG ; /// /\{\w+\}/g;
+    let m;
+    let array = [];
+    while ((m = regex.exec(content)) !== null) {
+        // This is necessary to avoid infinite loops with zero-width matches
+        if (m.index === regex.lastIndex) {
+            regex.lastIndex++;
         }
-        return array;
+        var fx = m[0];
+        if (fx) {
+            var name = fx.substring(1, fx.length - 1);
+            // console.log( 'm0  ' + m[0] ); 
+            // console.log( 'm1  ' + m[1] ); 
+            // console.log( 'm2  ' + m[2] ); 
+            // console.log( '');
+            if (m[2])
+                array.push(m[2]);
+        }
+    }
+    return array;
+}
+
+export
+
+function trimFirstLine(content) {
+    // 
+    var outs = [];
+    var find = false;
+    var lines = content.trim().split('\n');
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        if (!find) {
+            line = line.trim();
+            if (line.length > 0) {
+                find = true;
+            }
+        } else {
+            outs.push(line);
+        }
     }
 
-export
-    function trimFirstLine( content  ){
-        // 
-        var outs = [] ;
-        var find = false;
-        var lines = content.trim().split('\n');
-        for (var i = 0; i < lines.length; i++) {
-            var line = lines[i];
-            if( !find ){
-                line = line.trim();
-                if(line.length > 0){
-                    find = true;
-                }
-            }else {
-                outs.push(line);
-            }
-        }
-
-        return outs.join('\n');
+    return outs.join('\n');
 }
 
 
 
 export
-    function hasTitle( content , title   ){
-        // 
-        // get first line ;
-        var line = getFirstLine( content );
-        if(line){
-            var m = testTitle(line, title );
-            return m ; 
-        }
 
-        return false;
-
+function hasTitle(content, title) {
+    // 
+    // get first line ;
+    var line = getFirstLine(content);
+    if (line) {
+        var m = testTitle(line, title);
+        return m;
     }
+
+    return false;
+
+}
 
 
 
 
 export
-    function getFirstLine( content  ){
-        // 
-        var lines = content.trim().split('\n');
-        for (var i = 0; i < lines.length; i++) {
-            var line = lines[i];
-            line = line.trim();
-            if(line.length > 0){
-                return line;
-            }
-        }
 
-        return null;
+function getFirstLine(content) {
+    // 
+    var lines = content.trim().split('\n');
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        line = line.trim();
+        if (line.length > 0) {
+            return line;
+        }
+    }
+
+    return null;
 }
 
 // export
@@ -661,21 +667,21 @@ export
 //             return true;
 //         else 
 //             return false;
-        
-        
+
+
 // }
 
 
 // test if title exist in line  
-function testTitle( line , title ){
+function testTitle(line, title) {
 
-    if(!line) return false;
-    if(!title) return false;
+    if (!line) return false;
+    if (!title) return false;
 
     line = line.trim();
 
-    let rml = line.replace( /^\s*#+\s+/, '');
-    return rml === title || rml.indexOf(title) >= 0 ;        
+    let rml = line.replace(/^\s*#+\s+/, '');
+    return rml === title || rml.indexOf(title) >= 0;
 }
 
 
@@ -684,5 +690,5 @@ export default {
     checkImageCache,
     findBlogInNote,
     removeBlogInNote,
-    MetaWeblogClient 
+    MetaWeblogClient
 }

@@ -809,13 +809,13 @@ class NoteList extends React.Component {
         const selectedNotes = findNotesByKeys(notes, selectedNoteKeys)
         const firstNote = selectedNotes[0]
         const config = ConfigManager.get()
-   
+        const { storage, folder } = this.resolveTargetFolder();
         var that = this;
 
         var client = new MetaWeblogUtils.MetaWeblogClient(config.blog);
     
 
-        client.uploadMarkdownImages(  firstNote , 
+        client.uploadMarkdownImages(  storage , firstNote , 
             function( note, blog1 ){
             
                 that.publishMarkdownContentMetaWeblogApi( client, note, blog1 );

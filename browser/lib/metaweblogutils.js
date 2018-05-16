@@ -1,18 +1,17 @@
 import fs from 'fs'
-import path from 'path';
-import http from 'http';
+import path from 'path'
+import http from 'http'
 import Markdown from './markdown'
-const xmlrpc = require('xmlrpc');
+const xmlrpc = require('xmlrpc')
 
-var crypto = require('crypto');
-
-const IMAGE_REG = /!\[(.*?)\]\((.*)\)/gi;
-
+var crypto = require('crypto')
+const DESTINATION_FOLDER = 'attachments'
+const IMAGE_REG = /!\[(.*?)\]\((.*)\)/gi
 
 function MetaWeblog(opts) {
-    var address = opts.address;
-    var client = null;
-    var opts = opts;
+    let address = opts.address
+    var client = null
+        // var opts = opts;
     var blogId = opts.blogid;
 
     if (typeof address === 'string') {
@@ -277,12 +276,10 @@ class MetaWeblogClient {
 
 
 
-
-
     // publish markdown &images to weblog 
-    uploadMarkdownImages(note, success, error) {
+    uploadMarkdownImages( storage , note, success, error) {
 
-  
+
         var blog = findBlogInNote(note, this.address);
 
         // process local images ;
@@ -292,30 +289,37 @@ class MetaWeblogClient {
         var tasks = [];
         if (list) {
             for (var i = 0; i < list.length; i++) {
-                var file = list[i];
+                var url = list[i];
                 try {
 
-                    if (file.match(/^http/i)) {
+                    if (url.match(/^http/i)) {
                         continue;
                     }
 
-                    // ¼ì²éÍ¼Æ¬ÊÇ·ñÒÑ¾­ÉÏ´«¹ý
-                    var im = checkImageCache(blog, file);
+                    // check if image has uploaded 
+                    var im = checkImageCache(blog, url);
                     if (!im) {
+                        var fullPath = null ;
                         var imageContent = null;
-                        if (file.match(/^\\\:storage/i) || file.match(/^\/\:storage/i)) {
 
-                            // lenght of "/:storage"
-                            var name = file.substring(10);
-                            const { storage, folder } = this.resolveTargetFolder();
-                            var fullPath = path.join(storage.path, IMAGES_FOLDER_NAME, name);
+                        fullPath = replaceRealPath( url, storage.path );
 
-                            imageContent = fs.readFileSync(fullPath);
-                        } else {
-                            imageContent = fs.readFileSync(file);
-                        }
+                        // if (startWith(url,"\\:storage") || startWith(url,"/:storage")   || startWith(url,":storage") ) {
 
+                        //     // lenght of "/:storage"
+                        //     var name = this.trimStoragePrefix(url); // .substring(10);
+                             
+                        //     fullPath = path.join(storage.path, DESTINATION_FOLDER, name);
 
+                        //     imageContent = fs.readFileSync(fullPath);
+
+                             
+                        // } else {
+                        //     
+                        //     fullPath = url;
+                        // }
+
+                        imageContent = fs.readFileSync(fullPath); 
                         if (imageContent) {
                             // if( !Buffer.isBuffer(imageContent))
                             if (imageContent.length > 0) {
@@ -326,16 +330,19 @@ class MetaWeblogClient {
 
 
                         var image = {
-                            name: file,
-                        //    type: 'image/png',
+                            name: fullPath,
+                            //    type: 'image/png',
                             bits: imageContent // { base64 : base64file}
 
                         };
-                        console.log('upload image ', file);
+                        console.log('upload image ', fullPath , url );
                         // 
-                        var p = this.client.newMediaObject(  image );
+                        var p = this.client.newMediaObject(image);
                         tasks.push(p);
-                        ims.push(file);
+                        ims.push( {
+                            path : fullPath , 
+                            url  : url 
+                        });
 
                     }
                 } catch (e) {
@@ -356,10 +363,10 @@ class MetaWeblogClient {
                         if (file) {
                             if (!blog.imageUrls) blog.imageUrls = [];
 
-                            var sha1val = sha1File(file);
+                            var sha1val = sha1File(file.path);
 
                             blog.imageUrls.push({
-                                src: file,
+                                src: file.url,
                                 sha1: sha1val,
                                 url: ret.url
                             });
@@ -382,11 +389,14 @@ class MetaWeblogClient {
 };
 
 
+function startWith(s , s1 ){
+    return s.indexOf( s1 ) == 0 ;
+}
+
 /**
   find blog local record in notes 
 */
 export
-
 function findNoteByPostId(notes, address, postId) {
     for (var i = 0; i < notes.length; i++) {
         var note = notes[i];
@@ -424,9 +434,55 @@ function randName() {
 }
 
 
+/**
+ * trim 
+ * @param  {[type]} file [description]
+ * @return {[type]}      [description]
+ */
+function    trimStoragePrefix( file ){
+    var name = null;
+    if (startWith(file,"\\:storage") ) {
+        name = file.substring(10);
+    }else if (startWith(file,"/:storage") ) {
+         name = file.substring(10);
+     }else if (startWith(file,":storage") ) {
+         name = file.substring(9);
+    }else {
+        name = file;
+    }
+
+    return name;
+}
+
+function isStroagePrefix(url){
+    return  startWith(url,"\\:storage") || startWith(url,"/:storage")   || startWith(url,":storage")  ;
+}
+/**
+ * 将 :storage 前缀的替换为 完全路径
+ * @param  {[type]} url         [description]
+ * @param  {[type]} storagePath [description]
+ * @return {[type]}             [description]
+ */
+function replaceRealPath( url  , storagePath  ){
+    var fullPath = null ;
+     
+    if (startWith(url,"\\:storage") || startWith(url,"/:storage")   || startWith(url,":storage") ) {
+
+        // lenght of "/:storage"
+        var name = trimStoragePrefix(url); // .substring(10);
+        fullPath = path.join(storagePath, DESTINATION_FOLDER, name);
+
+         
+    } else {
+        fullPath = url;
+    }
+
+    return fullPath;
+}
+
+
 // 检查 Blog Image cache中 有没有缓存的数据
 export
-
 function checkImageCache(blog, image, name) {
     if (!blog.imageUrls || blog.imageUrls.length == 0)
         return null;
@@ -440,13 +496,21 @@ function checkImageCache(blog, image, name) {
 
             if (name === 'src') {
                 if (im.sha1) {
-                    var csha1 = sha1File(im.src);
-                    if (csha1 == im.sha1)
+
+
+                    if(!isStroagePrefix( im.src )){
+                        var csha1 = sha1File(im.src);
+                        if (csha1 == im.sha1)
+                            return im;
+                        else {
+                            blog.imageUrls.splice(i, 1); /// [i];
+                            return null;
+                        }
+                    }else {
                         return im;
-                    else {
-                        blog.imageUrls.splice(i, 1); /// [i];
-                        return null;
                     }
+
+                     
                 }
             }
             return im;

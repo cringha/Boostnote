@@ -30,6 +30,9 @@ function validateInput (input) {
     validatedInput.isPinned = !!input.isPinned
   }
 
+  if (input.code !== undefined) {
+    validatedInput.code =  input.code
+  }
   if (!_.isNil(input.blog)) {
     validatedInput.blog = input.blog
   }

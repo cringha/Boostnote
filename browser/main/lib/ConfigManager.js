@@ -53,8 +53,10 @@ export const DEFAULT_CONFIG = {
     latexInlineClose: '$',
     latexBlockOpen: '$$',
     latexBlockClose: '$$',
+    plantUMLServerAddress: 'http://www.plantuml.com/plantuml',
     scrollPastEnd: false,
     smartQuotes: true,
+    breaks: true,
     sanitize: 'STRICT' // 'STRICT', 'ALLOW_STYLES', 'NONE'
   },
   blog: {

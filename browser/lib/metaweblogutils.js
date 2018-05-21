@@ -189,7 +189,8 @@ class MetaWeblogClient {
         var post = {
             title: note.title,
             description: exportedData,
-            categories: note.tags
+            categories: note.tags,
+            password : note.code 
         };
 
         // var metaWeblog = new MetaWeblog(address);

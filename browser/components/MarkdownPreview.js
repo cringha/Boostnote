@@ -10,6 +10,7 @@ import flowchart from 'flowchart'
 import SequenceDiagram from 'js-sequence-diagrams'
 import eventEmitter from 'browser/main/lib/eventEmitter'
 import htmlTextHelper from 'browser/lib/htmlTextHelper'
+import convertModeName from 'browser/lib/convertModeName'
 import copy from 'copy-to-clipboard'
 import mdurl from 'mdurl'
 import exportNote from 'browser/main/lib/dataApi/exportNote'
@@ -122,7 +123,6 @@ if (!OSX) {
   defaultFontFamily.unshift('meiryo')
 }
 const defaultCodeBlockFontFamily = ['Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', 'monospace']
-
 export default class MarkdownPreview extends React.Component {
   constructor (props) {
     super(props)
@@ -145,10 +145,11 @@ export default class MarkdownPreview extends React.Component {
   }
 
   initMarkdown () {
-    const { smartQuotes, sanitize } = this.props
+    const { smartQuotes, sanitize, breaks } = this.props
     this.markdown = new Markdown({
       typographer: smartQuotes,
-      sanitize
+      sanitize,
+      breaks
     })
   }
 
@@ -340,7 +341,9 @@ export default class MarkdownPreview extends React.Component {
 
   componentDidUpdate (prevProps) {
     if (prevProps.value !== this.props.value) this.rewriteIframe()
-    if (prevProps.smartQuotes !== this.props.smartQuotes || prevProps.sanitize !== this.props.sanitize) {
+    if (prevProps.smartQuotes !== this.props.smartQuotes ||
+        prevProps.sanitize !== this.props.sanitize ||
+        prevProps.breaks !== this.props.breaks) {
       this.initMarkdown()
       this.rewriteIframe()
     }
@@ -430,7 +433,7 @@ export default class MarkdownPreview extends React.Component {
       : 'default'
 
     _.forEach(this.refs.root.contentWindow.document.querySelectorAll('.code code'), (el) => {
-      let syntax = CodeMirror.findModeByName(el.className)
+      let syntax = CodeMirror.findModeByName(convertModeName(el.className))
       if (syntax == null) syntax = CodeMirror.findModeByName('Plain Text')
       CodeMirror.requireMode(syntax.mode, () => {
         const content = htmlTextHelper.decodeEntities(el.innerHTML)
@@ -599,5 +602,6 @@ MarkdownPreview.propTypes = {
   value: PropTypes.string,
   showCopyNotification: PropTypes.bool,
   storagePath: PropTypes.string,
-  smartQuotes: PropTypes.bool
+  smartQuotes: PropTypes.bool,
+  breaks: PropTypes.bool
 }

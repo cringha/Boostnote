@@ -8,93 +8,81 @@ import _ from 'lodash'
 import i18n from 'browser/lib/i18n'
 
 import MetaWeblogUtils from 'browser/lib/metaweblogutils';
-
 const electron = require('electron')
 const { shell } = electron
-const ipc = electron.ipcRenderer;
-
-
- 
-  
+const ipc = electron.ipcRenderer
 class Blog extends React.Component {
-      constructor(props) {
-         super(props)
+  constructor (props) {
+    super(props)
 
-         this.state = {
-             config: props.config,
-             BlogAlert: null
-         }
-     }
+    this.state = {
+      config: props.config,
+      BlogAlert: null
+    }
+  }
 
-     handleLinkClick(e) {
-         shell.openExternal(e.currentTarget.href)
-         e.preventDefault()
-     }
+  handleLinkClick (e) {
+    shell.openExternal(e.currentTarget.href)
+    e.preventDefault()
+  }
 
-     clearMessage() {
-         _.debounce(() => {
-             this.setState({
-                 BlogAlert: null
-             })
-         }, 2000)()
-     }
+  clearMessage () {
+    _.debounce(() => {
+      this.setState({
+        BlogAlert: null
+      })
+    }, 2000)()
+  }
 
-     componentDidMount() {
-         this.handleSettingDone = () => {
-             this.setState({
-                 BlogAlert: {
-                     type: 'success',
-                     message: i18n.__('Successfully applied!')
-                 }
-             })
-         }
-         this.handleSettingError = (err) => {
-             this.setState({
-                 BlogAlert: {
-                     type: 'error',
-                     message: err.message != null ? err.message : i18n.__('Error occurs!')
-                 }
-             })
-         }
-         this.oldBlog = this.state.config.blog
-         ipc.addListener('APP_SETTING_DONE', this.handleSettingDone)
-         ipc.addListener('APP_SETTING_ERROR', this.handleSettingError)
-     }
+  componentDidMount () {
+    this.handleSettingDone = () => {
+      this.setState({BlogAlert: {
+        type: 'success',
+        message: i18n.__('Successfully applied!')
+      }})
+    }
+    this.handleSettingError = (err) => {
+      this.setState({BlogAlert: {
+        type: 'error',
+        message: err.message != null ? err.message : i18n.__('Error occurs!')
+      }})
+    }
+    this.oldBlog = this.state.config.blog
+    ipc.addListener('APP_SETTING_DONE', this.handleSettingDone)
+    ipc.addListener('APP_SETTING_ERROR', this.handleSettingError)
+  }
 
-     handleBlogChange(e) {
-         const { config } = this.state
-         config.blog = {
-             password: !_.isNil(this.refs.passwordInput) ? this.refs.passwordInput.value : config.blog.password,
-             username: !_.isNil(this.refs.usernameInput) ? this.refs.usernameInput.value : config.blog.username,
-
-             // if true, publish markdown instead html 
+  handleBlogChange (e) {
+    const { config } = this.state
+    config.blog = {
+      password: !_.isNil(this.refs.passwordInput) ? this.refs.passwordInput.value : config.blog.password,
+      username: !_.isNil(this.refs.usernameInput) ? this.refs.usernameInput.value : config.blog.username,
              markdown: !_.isNil(this.refs.markdownInput) ? this.refs.markdownInput.checked : config.blog.markdown,
-             token: !_.isNil(this.refs.tokenInput) ? this.refs.tokenInput.value : config.blog.token,
-             authMethod: this.refs.authMethodDropdown.value,
-             address: this.refs.addressInput.value,
-             type: this.refs.typeDropdown.value
-         }
-         this.setState({
-             config
-         })
-         if (_.isEqual(this.oldBlog, config.blog)) {
-             this.props.haveToSave()
-         } else {
-             this.props.haveToSave({
-                 tab: 'Blog',
-                 type: 'warning',
-                 message: i18n.__('You have to save!')
-             })
-         }
-     }
+      token: !_.isNil(this.refs.tokenInput) ? this.refs.tokenInput.value : config.blog.token,
+      authMethod: this.refs.authMethodDropdown.value,
+      address: this.refs.addressInput.value,
+      type: this.refs.typeDropdown.value
+    }
+    this.setState({
+      config
+    })
+    if (_.isEqual(this.oldBlog, config.blog)) {
+      this.props.haveToSave()
+    } else {
+      this.props.haveToSave({
+        tab: 'Blog',
+        type: 'warning',
+        message: i18n.__('You have to save!')
+      })
+    }
+  }
 
-     handleSaveButtonClick(e) {
-         const newConfig = {
-             blog: this.state.config.blog
-         }
+  handleSaveButtonClick (e) {
+    const newConfig = {
+      blog: this.state.config.blog
+    }
 
-
-         // check metawblog config if correct and get blogid from server 
+// check metawblog config if correct and get blogid from server 
          var client = new MetaWeblogUtils.MetaWeblogClient(newConfig.blog);
          client.getBlogId()
              .then(blogs => {
@@ -120,15 +108,11 @@ class Blog extends React.Component {
                  console.log(error);
                  this.handleSettingError(error);
              });
+  }
 
-
-
-
-     }
-
-      render () {
-        const {config, BlogAlert} = this.state
-        const blogAlertElement = BlogAlert != null
+  render () {
+    const {config, BlogAlert} = this.state
+    const blogAlertElement = BlogAlert != null
       ? <p className={`alert ${BlogAlert.type}`}>
         {BlogAlert.message}
       </p>

@@ -84,8 +84,8 @@
   resolved "http://registry.npm.taobao.org/@types/es6-promise/download/@types/es6-promise-0.0.28.tgz#1af00118ff7b88fe3e46be943add54edeb285b75"
 
 "@types/node@^6.0.31":
-  version "6.0.107"
-  resolved "http://registry.npm.taobao.org/@types/node/download/@types/node-6.0.107.tgz#917613ed129a5fd6601dc4b644c4c324aaad4f4c"
+  version "6.0.110"
+  resolved "http://registry.npm.taobao.org/@types/node/download/@types/node-6.0.110.tgz#6bbfc1c14d671348e3db4f89f3b487785e684684"
 
 "@types/node@^7.0.18":
   version "7.0.46"
@@ -1872,13 +1872,17 @@ codemirror-mode-elixir@^1.1.1:
   dependencies:
     codemirror "^5.20.2"
 
-codemirror@^5.18.2, codemirror@^5.19.0:
+codemirror@^5.18.2:
   version "5.26.0"
   resolved "https://registry.yarnpkg.com/codemirror/-/codemirror-5.26.0.tgz#bcbee86816ed123870c260461c2b5c40b68746e5"
 
 codemirror@^5.20.2:
   version "5.33.0"
   resolved "https://registry.yarnpkg.com/codemirror/-/codemirror-5.33.0.tgz#462ad9a6fe8d38b541a9536a3997e1ef93b40c6a"
+
+codemirror@^5.37.0:
+  version "5.37.0"
+  resolved "https://registry.yarnpkg.com/codemirror/-/codemirror-5.37.0.tgz#c349b584e158f590277f26d37c2469a6bc538036"
 
 coffee-script@^1.10.0:
   version "1.12.6"
@@ -3645,6 +3649,14 @@ fs-extra@^1.0.0:
     jsonfile "^2.1.0"
     klaw "^1.0.0"
 
+fs-extra@^5.0.0:
+  version "5.0.0"
+  resolved "https://registry.yarnpkg.com/fs-extra/-/fs-extra-5.0.0.tgz#414d0110cdd06705734d055652c5411260c31abd"
+  dependencies:
+    graceful-fs "^4.1.2"
+    jsonfile "^4.0.0"
+    universalify "^0.1.0"
+
 fs-plus@2.x:
   version "2.10.1"
   resolved "https://registry.yarnpkg.com/fs-plus/-/fs-plus-2.10.1.tgz#3204781d7840611e6364e7b6fb058c96327c5aa5"
@@ -5314,6 +5326,12 @@ json5@^0.5.0, json5@^0.5.1:
 jsonfile@^2.0.0, jsonfile@^2.1.0:
   version "2.4.0"
   resolved "https://registry.yarnpkg.com/jsonfile/-/jsonfile-2.4.0.tgz#3736a2b428b87bbda0cc83b53fa3d633a35c2ae8"
+  optionalDependencies:
+    graceful-fs "^4.1.6"
+
+jsonfile@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/jsonfile/-/jsonfile-4.0.0.tgz#8771aae0799b64076b76640fca058f9c10e33ecb"
   optionalDependencies:
     graceful-fs "^4.1.6"
 
@@ -7734,7 +7752,7 @@ sax@1.2.1, sax@>=0.6.0, sax@^1.2.1, sax@~1.2.1:
 
 sax@1.2.x, sax@^1.2.4:
   version "1.2.4"
-  resolved "https://registry.yarnpkg.com/sax/-/sax-1.2.4.tgz#2816234e2378bddc4e5354fab5caa895df7100d9"
+  resolved "http://registry.npm.taobao.org/sax/download/sax-1.2.4.tgz#2816234e2378bddc4e5354fab5caa895df7100d9"
 
 semver-diff@^2.0.0:
   version "2.1.0"
@@ -8749,6 +8767,10 @@ unique-temp-dir@^1.0.0:
     mkdirp "^0.5.1"
     os-tmpdir "^1.0.1"
     uid2 "0.0.3"
+
+universalify@^0.1.0:
+  version "0.1.1"
+  resolved "https://registry.yarnpkg.com/universalify/-/universalify-0.1.1.tgz#fa71badd4437af4c148841e3b3b165f9e9e590b7"
 
 unpipe@~1.0.0:
   version "1.0.0"

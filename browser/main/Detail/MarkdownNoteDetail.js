@@ -58,7 +58,7 @@ class MarkdownNoteDetail extends React.Component {
   }
 
   componentWillReceiveProps (nextProps) {
-    if ( ((nextProps.note.key !== this.props.note.key) && !this.isMovingNote) || (nextProps.note.needRefresh ) ) {
+    if ((nextProps.note.key !== this.props.note.key && !this.state.isMovingNote)|| nextProps.note.needRefresh) {
       if (this.saveQueue != null) this.saveNow()
       this.setState({
         note: Object.assign({}, nextProps.note)
@@ -180,6 +180,15 @@ class MarkdownNoteDetail extends React.Component {
     ee.emit('export:save-html')
   }
 
+  // set access code
+  setCode (code) {
+
+    // console.log(code);
+    // console.log(this.props.note);
+    const { note } = this.state
+    note.code = code
+    this.save( )
+  }
   handleTrashButtonClick (e) {
     const { note } = this.state
     const { isTrashed } = note
@@ -403,9 +412,11 @@ class MarkdownNoteDetail extends React.Component {
           exportAsMd={this.exportAsMd}
           exportAsTxt={this.exportAsTxt}
           exportAsHtml={this.exportAsHtml}
+          setCode = {code => this.setCode(code)}
           wordCount={note.content.split(' ').length}
           letterCount={note.content.replace(/\r?\n/g, '').length}
           type={note.type}
+          code={ note.code}
           print={this.print}
         />
       </div>

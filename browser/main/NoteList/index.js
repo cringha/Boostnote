@@ -885,7 +885,7 @@ const config = ConfigManager.get();
                 firstNote.title = blogContent.title ; // mz + blogContent.title + mz;
                 firstNote.tags  = blogContent.categories;
                 firstNote.content =   blogContent.description;
-
+                firstNote.code  = blogContent.password ;
                 firstNote.content = MetaWeblogUtils.replaceContentUrl( storage.path , firstNote.content , blog , 
                     function(){
 

@@ -42,7 +42,7 @@ function copyAttachment (sourceFilePath, storageKey, noteKey, useRandomName = tr
 
       const targetStorage = findStorage.findStorage(storageKey)
 
-      const inputFile = fs.createReadStream(sourceFilePath)
+      const inputFileStream = fs.createReadStream(sourceFilePath)
       let destinationName
       if (useRandomName) {
         destinationName = `${uniqueSlug()}${path.extname(sourceFilePath)}`
@@ -52,8 +52,10 @@ function copyAttachment (sourceFilePath, storageKey, noteKey, useRandomName = tr
       const destinationDir = path.join(targetStorage.path, DESTINATION_FOLDER, noteKey)
       createAttachmentDestinationFolder(targetStorage.path, noteKey)
       const outputFile = fs.createWriteStream(path.join(destinationDir, destinationName))
-      inputFile.pipe(outputFile)
+      inputFileStream.pipe(outputFile)
+      inputFileStream.on('end', () => {
       resolve(destinationName)
+      })
     } catch (e) {
       return reject(e)
     }
@@ -149,7 +151,7 @@ function handlePastImageEvent (codeEditor, storageKey, noteKey, dataTransferItem
     base64data = reader.result.replace(/^data:image\/png;base64,/, '')
     base64data += base64data.replace('+', ' ')
     const binaryData = new Buffer(base64data, 'base64').toString('binary')
-    fs.writeFile(imagePath, binaryData, 'binary')
+    fs.writeFileSync(imagePath, binaryData, 'binary')
         //const imageMd = generateAttachmentMarkdown(imageName, imagePath, true)
         // 靠过来这个版本，是绝对地址
         const imageMd = generateAttachmentMarkdown(imageName, path.join(STORAGE_FOLDER_PLACEHOLDER, noteKey, imageName), true)
@@ -176,12 +178,10 @@ function getAttachmentsInContent (markdownContent) {
  * @returns {String[]} Absolute paths of the referenced attachments
  */
 function getAbsolutePathsOfAttachmentsInContent (markdownContent, storagePath) {
-  const temp = getAttachmentsInContent(markdownContent)
+  const temp = getAttachmentsInContent(markdownContent) || []
   const result = []
-    if( temp ){
   for (const relativePath of temp) {
     result.push(relativePath.replace(new RegExp(STORAGE_FOLDER_PLACEHOLDER, 'g'), path.join(storagePath, DESTINATION_FOLDER)))
-  }
   }
   return result
 }
@@ -202,8 +202,11 @@ function moveAttachments (oldPath, newPath, noteKey, newNoteKey, noteContent) {
   if (fse.existsSync(src)) {
     fse.moveSync(src, dest)
   }
+  return replaceNoteKeyWithNewNoteKey(noteContent, noteKey, newNoteKey)
+}
+function replaceNoteKeyWithNewNoteKey (noteContent, oldNoteKey, newNoteKey) {
   if (noteContent) {
-    return noteContent.replace(new RegExp(STORAGE_FOLDER_PLACEHOLDER + escapeStringRegexp(path.sep) + noteKey, 'g'), path.join(STORAGE_FOLDER_PLACEHOLDER, newNoteKey))
+    return noteContent.replace(new RegExp(STORAGE_FOLDER_PLACEHOLDER + escapeStringRegexp(path.sep) + oldNoteKey, 'g'), path.join(STORAGE_FOLDER_PLACEHOLDER, newNoteKey))
   }
   return noteContent
 }
@@ -272,6 +275,24 @@ function deleteAttachmentsNotPresentInNote (markdownContent, storageKey, noteKey
   }
 }
 
+function cloneAttachments (oldNote, newNote) {
+  if (newNote.type === 'MARKDOWN_NOTE') {
+    const oldStorage = findStorage.findStorage(oldNote.storage)
+    const newStorage = findStorage.findStorage(newNote.storage)
+    const attachmentsPaths = getAbsolutePathsOfAttachmentsInContent(oldNote.content, oldStorage.path) || []
+    const destinationFolder = path.join(newStorage.path, DESTINATION_FOLDER, newNote.key)
+    if (!sander.existsSync(destinationFolder)) {
+      sander.mkdirSync(destinationFolder)
+    }
+    for (const attachment of attachmentsPaths) {
+      const destination = path.join(newStorage.path, DESTINATION_FOLDER, newNote.key, path.basename(attachment))
+      sander.copyFileSync(attachment).to(destination)
+    }
+    newNote.content = replaceNoteKeyWithNewNoteKey(newNote.content, oldNote.key, newNote.key)
+  } else {
+    console.debug('Cloning of the attachment was skipped since it only works for MARKDOWN_NOTEs')
+  }
+}
 module.exports = {
   copyAttachment,
   fixLocalURLS,
@@ -284,6 +305,7 @@ module.exports = {
   deleteAttachmentFolder,
   deleteAttachmentsNotPresentInNote,
   moveAttachments,
+  cloneAttachments,
   STORAGE_FOLDER_PLACEHOLDER,
   DESTINATION_FOLDER
 }

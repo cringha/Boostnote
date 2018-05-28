@@ -5658,6 +5658,10 @@ map-visit@^1.0.0:
   dependencies:
     object-visit "^1.0.0"
 
+"markdown-it-admonition@https://github.com/johannbre/markdown-it-admonition.git":
+  version "1.0.2"
+  resolved "https://github.com/johannbre/markdown-it-admonition.git#e0c0fcd59e9119d6d60ed209aa3d0f1177ec0166"
+
 markdown-it-checkbox@^1.1.0:
   version "1.1.0"
   resolved "https://registry.yarnpkg.com/markdown-it-checkbox/-/markdown-it-checkbox-1.1.0.tgz#20cff97f33d77d172f9dcf1bcfc92cecc5330fac"
@@ -5993,6 +5997,14 @@ mock-require@^3.0.1:
 moment@^2.10.3:
   version "2.18.1"
   resolved "https://registry.yarnpkg.com/moment/-/moment-2.18.1.tgz#c36193dd3ce1c2eed2adb7c802dbbc77a81b1c0f"
+
+mousetrap-global-bind@^1.1.0:
+  version "1.1.0"
+  resolved "http://registry.npm.taobao.org/mousetrap-global-bind/download/mousetrap-global-bind-1.1.0.tgz#cd7de9222bd0646fa2e010d54c84a74c26a88edd"
+
+mousetrap@^1.6.1:
+  version "1.6.1"
+  resolved "http://registry.npm.taobao.org/mousetrap/download/mousetrap-1.6.1.tgz#2a085f5c751294c75e7e81f6ec2545b29cbf42d9"
 
 ms@0.7.1:
   version "0.7.1"

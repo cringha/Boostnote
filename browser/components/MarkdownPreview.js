@@ -21,10 +21,12 @@ const attachmentManagement = require('../main/lib/dataApi/attachmentManagement')
 
 const { app } = remote
 const path = require('path')
+const fileUrl = require('file-url')
+
 const dialog = remote.dialog
 
 const markdownStyle = require('!!css!stylus?sourceMap!./markdown.styl')[0][1]
-const appPath = 'file://' + (process.env.NODE_ENV === 'production'
+const appPath = fileUrl(process.env.NODE_ENV === 'production'
   ? app.getAppPath()
   : path.resolve())
 const CSS_FILES = [
@@ -32,7 +34,7 @@ const CSS_FILES = [
   `${appPath}/node_modules/codemirror/lib/codemirror.css`
 ]
 
-function buildStyle (fontFamily, fontSize, codeBlockFontFamily, lineNumber, scrollPastEnd, theme) {
+function buildStyle (fontFamily, fontSize, codeBlockFontFamily, lineNumber, scrollPastEnd, theme, allowCustomCSS, customCSS) {
   return `
 @font-face {
   font-family: 'Lato';
@@ -62,7 +64,9 @@ function buildStyle (fontFamily, fontSize, codeBlockFontFamily, lineNumber, scro
        url('${appPath}/resources/fonts/MaterialIcons-Regular.woff') format('woff'),
        url('${appPath}/resources/fonts/MaterialIcons-Regular.ttf') format('truetype');
 }
+${allowCustomCSS ? customCSS : ''}
 ${markdownStyle}
+
 body {
   font-family: '${fontFamily.join("','")}';
   font-size: ${fontSize}px;
@@ -119,6 +123,9 @@ body p {
   body[data-theme="${theme}"] {
     color: #000;
     background-color: #fff;
+  }
+  .clipboardButton {
+    display: none
   }
 }
 `
@@ -209,9 +216,9 @@ export default class MarkdownPreview extends React.Component {
 
   handleSaveAsHtml () {
     this.exportAsDocument('html', (noteContent, exportTasks) => {
-      const {fontFamily, fontSize, codeBlockFontFamily, lineNumber, codeBlockTheme, scrollPastEnd, theme} = this.getStyleParams()
+      const {fontFamily, fontSize, codeBlockFontFamily, lineNumber, codeBlockTheme, scrollPastEnd, theme, allowCustomCSS, customCSS} = this.getStyleParams()
 
-      const inlineStyles = buildStyle(fontFamily, fontSize, codeBlockFontFamily, lineNumber, scrollPastEnd, theme)
+      const inlineStyles = buildStyle(fontFamily, fontSize, codeBlockFontFamily, lineNumber, scrollPastEnd, theme, allowCustomCSS, customCSS)
       let body = this.markdown.render(escapeHtmlCharacters(noteContent))
 
       const files = [this.GetCodeThemeLink(codeBlockTheme), ...CSS_FILES]
@@ -336,6 +343,7 @@ export default class MarkdownPreview extends React.Component {
     if (prevProps.value !== this.props.value) this.rewriteIframe()
     if (prevProps.smartQuotes !== this.props.smartQuotes ||
         prevProps.sanitize !== this.props.sanitize ||
+        prevProps.smartArrows !== this.props.smartArrows ||
         prevProps.breaks !== this.props.breaks) {
       this.initMarkdown()
       this.rewriteIframe()
@@ -347,14 +355,16 @@ export default class MarkdownPreview extends React.Component {
       prevProps.lineNumber !== this.props.lineNumber ||
       prevProps.showCopyNotification !== this.props.showCopyNotification ||
       prevProps.theme !== this.props.theme ||
-      prevProps.scrollPastEnd !== this.props.scrollPastEnd) {
+      prevProps.scrollPastEnd !== this.props.scrollPastEnd ||
+      prevProps.allowCustomCSS !== this.props.allowCustomCSS ||
+      prevProps.customCSS !== this.props.customCSS) {
       this.applyStyle()
       this.rewriteIframe()
     }
   }
 
   getStyleParams () {
-    const { fontSize, lineNumber, codeBlockTheme, scrollPastEnd, theme } = this.props
+    const { fontSize, lineNumber, codeBlockTheme, scrollPastEnd, theme, allowCustomCSS, customCSS } = this.props
     let { fontFamily, codeBlockFontFamily } = this.props
     fontFamily = _.isString(fontFamily) && fontFamily.trim().length > 0
         ? fontFamily.split(',').map(fontName => fontName.trim()).concat(defaultFontFamily)
@@ -363,14 +373,14 @@ export default class MarkdownPreview extends React.Component {
         ? codeBlockFontFamily.split(',').map(fontName => fontName.trim()).concat(defaultCodeBlockFontFamily)
         : defaultCodeBlockFontFamily
 
-    return {fontFamily, fontSize, codeBlockFontFamily, lineNumber, codeBlockTheme, scrollPastEnd, theme}
+    return {fontFamily, fontSize, codeBlockFontFamily, lineNumber, codeBlockTheme, scrollPastEnd, theme, allowCustomCSS, customCSS}
   }
 
   applyStyle () {
-    const {fontFamily, fontSize, codeBlockFontFamily, lineNumber, codeBlockTheme, scrollPastEnd, theme} = this.getStyleParams()
+    const {fontFamily, fontSize, codeBlockFontFamily, lineNumber, codeBlockTheme, scrollPastEnd, theme, allowCustomCSS, customCSS} = this.getStyleParams()
 
     this.getWindow().document.getElementById('codeTheme').href = this.GetCodeThemeLink(codeBlockTheme)
-    this.getWindow().document.getElementById('style').innerHTML = buildStyle(fontFamily, fontSize, codeBlockFontFamily, lineNumber, scrollPastEnd, theme)
+    this.getWindow().document.getElementById('style').innerHTML = buildStyle(fontFamily, fontSize, codeBlockFontFamily, lineNumber, scrollPastEnd, theme, allowCustomCSS, customCSS)
   }
 
   GetCodeThemeLink (theme) {
@@ -391,7 +401,7 @@ export default class MarkdownPreview extends React.Component {
       el.removeEventListener('click', this.linkClickHandler)
     })
 
-    const { theme, indentSize, showCopyNotification, storagePath } = this.props
+    const { theme, indentSize, showCopyNotification, storagePath, noteKey } = this.props
     let { value, codeBlockTheme } = this.props
 
     this.refs.root.contentWindow.document.body.setAttribute('data-theme', theme)
@@ -403,6 +413,7 @@ export default class MarkdownPreview extends React.Component {
       })
     }
     let renderedHTML = this.markdown.render(value)
+    attachmentManagement.migrateAttachments(renderedHTML, storagePath, noteKey)
     this.refs.root.contentWindow.document.body.innerHTML = attachmentManagement.fixLocalURLS(renderedHTML, storagePath)
 
     _.forEach(this.refs.root.contentWindow.document.querySelectorAll('input[type="checkbox"]'), (el) => {
@@ -526,11 +537,6 @@ export default class MarkdownPreview extends React.Component {
     e.stopPropagation()
 
     const href = e.target.href
-    if (href.match(/^http/i)) {
-      shell.openExternal(href)
-      return
-    }
-
     const linkHash = href.split('/').pop()
 
     const regexNoteInternalLink = /main.html#(.+)/
@@ -562,6 +568,9 @@ export default class MarkdownPreview extends React.Component {
       eventEmitter.emit('list:jump', linkHash.split('-')[1])
       return
     }
+
+    // other case
+    shell.openExternal(href)
   }
 
   render () {
@@ -590,5 +599,6 @@ MarkdownPreview.propTypes = {
   showCopyNotification: PropTypes.bool,
   storagePath: PropTypes.string,
   smartQuotes: PropTypes.bool,
+  smartArrows: PropTypes.bool,
   breaks: PropTypes.bool
 }

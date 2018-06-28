@@ -164,7 +164,6 @@
 	"Cloud-Syncing-and-Backup": "Cloud-Syncing-and-Backup",
 	"Location": "Location",
 	"Add": "Add",
-	"Select Folder": "Select Folder",
 	"Unlink Storage": "Unlink Storage",
 	"Unlinking removes this linked storage from Boostnote. No data is removed, please manually delete the folder from your hard drive if needed.": "Unlinking removes this linked storage from Boostnote. No data is removed, please manually delete the folder from your hard drive if needed.",
 	"Editor Rulers": "Editor Rulers",
@@ -174,5 +173,7 @@
 	"Only allow secure html tags (recommended)": "Only allow secure html tags (recommended)",
 	"Render newlines in Markdown paragraphs as <br>": "Render newlines in Markdown paragraphs as <br>",
 	"Allow styles": "Allow styles",
-	"Allow dangerous html tags": "Allow dangerous html tags"
+	"Allow dangerous html tags": "Allow dangerous html tags",
+	"Convert textual arrows to beautiful signs. ⚠ This will interfere with using HTML comments in your Markdown.": "Convert textual arrows to beautiful signs. ⚠ This will interfere with using HTML comments in your Markdown.",
+	"⚠ You have pasted a link referring an attachment that could not be found in the storage location of this note. Pasting links referring attachments is only supported if the source and destination location is the same storage. Please Drag&Drop the attachment instead! ⚠": "⚠ You have pasted a link referring an attachment that could not be found in the storage location of this note. Pasting links referring attachments is only supported if the source and destination location is the same storage. Please Drag&Drop the attachment instead! ⚠"
 }

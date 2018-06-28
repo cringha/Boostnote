@@ -6,6 +6,7 @@ const mdurl = require('mdurl')
 const fse = require('fs-extra')
 const escapeStringRegexp = require('escape-string-regexp')
 const sander = require('sander')
+import i18n from 'browser/lib/i18n'
 
 const STORAGE_FOLDER_PLACEHOLDER = ':storage'
 const DESTINATION_FOLDER = 'attachments'
@@ -54,7 +55,7 @@ function copyAttachment (sourceFilePath, storageKey, noteKey, useRandomName = tr
       const outputFile = fs.createWriteStream(path.join(destinationDir, destinationName))
       inputFileStream.pipe(outputFile)
       inputFileStream.on('end', () => {
-      resolve(destinationName)
+        resolve(destinationName)
       })
     } catch (e) {
       return reject(e)
@@ -74,13 +75,38 @@ function createAttachmentDestinationFolder (destinationStoragePath, noteKey) {
 }
 
 /**
+ * @description Moves attachments from the old location ('/images') to the new one ('/attachments/noteKey)
+ * @param renderedHTML HTML of the current note
+ * @param storagePath Storage path of the current note
+ * @param noteKey Key of the current note
+ */
+function migrateAttachments (renderedHTML, storagePath, noteKey) {
+  if (sander.existsSync(path.join(storagePath, 'images'))) {
+    const attachments = getAttachmentsInContent(renderedHTML) || []
+    if (attachments !== []) {
+      createAttachmentDestinationFolder(storagePath, noteKey)
+    }
+    for (const attachment of attachments) {
+      const attachmentBaseName = path.basename(attachment)
+      const possibleLegacyPath = path.join(storagePath, 'images', attachmentBaseName)
+      if (sander.existsSync(possibleLegacyPath)) {
+        const destinationPath = path.join(storagePath, DESTINATION_FOLDER, attachmentBaseName)
+        if (!sander.existsSync(destinationPath)) {
+          sander.copyFileSync(possibleLegacyPath).to(destinationPath)
+        }
+      }
+    }
+  }
+}
+
+/**
  * @description Fixes the URLs embedded in the generated HTML so that they again refer actual local files.
  * @param {String} renderedHTML HTML in that the links should be fixed
  * @param {String} storagePath Path of the current storage
  * @returns {String} postprocessed HTML in which all :storage references are mapped to the actual paths.
  */
 function fixLocalURLS (renderedHTML, storagePath) {
-  return renderedHTML.replace(new RegExp(mdurl.encode(path.sep), 'g'), path.sep).replace(new RegExp(STORAGE_FOLDER_PLACEHOLDER, 'g'), 'file:///' + path.join(storagePath, DESTINATION_FOLDER))
+  return renderedHTML.replace(new RegExp(mdurl.encode(path.sep), 'g'), path.sep).replace(new RegExp('/?' + STORAGE_FOLDER_PLACEHOLDER, 'g'), 'file:///' + path.join(storagePath, DESTINATION_FOLDER))
 }
 
 /**
@@ -152,10 +178,9 @@ function handlePastImageEvent (codeEditor, storageKey, noteKey, dataTransferItem
     base64data += base64data.replace('+', ' ')
     const binaryData = new Buffer(base64data, 'base64').toString('binary')
     fs.writeFileSync(imagePath, binaryData, 'binary')
-        //const imageMd = generateAttachmentMarkdown(imageName, imagePath, true)
-        // ¿¿¹ýÀ´Õâ¸ö°æ±¾£¬ÊÇ¾ø¶ÔµØÖ·
-        const imageMd = generateAttachmentMarkdown(imageName, path.join(STORAGE_FOLDER_PLACEHOLDER, noteKey, imageName), true)
-        codeEditor.insertAttachmentMd(imageMd)
+    const imageReferencePath = path.join(STORAGE_FOLDER_PLACEHOLDER, noteKey, imageName)
+    const imageMd = generateAttachmentMarkdown(imageName, imageReferencePath, true)
+    codeEditor.insertAttachmentMd(imageMd)
   }
   reader.readAsDataURL(blob)
 }
@@ -167,7 +192,7 @@ function handlePastImageEvent (codeEditor, storageKey, noteKey, dataTransferItem
  */
 function getAttachmentsInContent (markdownContent) {
   const preparedInput = markdownContent.replace(new RegExp(mdurl.encode(path.sep), 'g'), path.sep)
-  const regexp = new RegExp(STORAGE_FOLDER_PLACEHOLDER + escapeStringRegexp(path.sep) + '([a-zA-Z0-9]|-)+' + escapeStringRegexp(path.sep) + '[a-zA-Z0-9]+(\\.[a-zA-Z0-9]+)?', 'g')
+  const regexp = new RegExp('/?' + STORAGE_FOLDER_PLACEHOLDER + '(' + escapeStringRegexp(path.sep) + '|/)' + '?([a-zA-Z0-9]|-)*' + '(' + escapeStringRegexp(path.sep) + '|/)' + '([a-zA-Z0-9]|\\.)+(\\.[a-zA-Z0-9]+)?', 'g')
   return preparedInput.match(regexp)
 }
 
@@ -204,6 +229,14 @@ function moveAttachments (oldPath, newPath, noteKey, newNoteKey, noteContent) {
   }
   return replaceNoteKeyWithNewNoteKey(noteContent, noteKey, newNoteKey)
 }
+
+/**
+ * Modifies the given content so that in all attachment references the oldNoteKey is replaced by the new one
+ * @param noteContent content that should be modified
+ * @param oldNoteKey note key to be replaced
+ * @param newNoteKey note key serving as a replacement
+ * @returns {String} modified note content
+ */
 function replaceNoteKeyWithNewNoteKey (noteContent, oldNoteKey, newNoteKey) {
   if (noteContent) {
     return noteContent.replace(new RegExp(STORAGE_FOLDER_PLACEHOLDER + escapeStringRegexp(path.sep) + oldNoteKey, 'g'), path.join(STORAGE_FOLDER_PLACEHOLDER, newNoteKey))
@@ -218,7 +251,7 @@ function replaceNoteKeyWithNewNoteKey (noteContent, oldNoteKey, newNoteKey) {
  * @returns {String} Input without the references
  */
 function removeStorageAndNoteReferences (input, noteKey) {
-  return input.replace(new RegExp(mdurl.encode(path.sep), 'g'), path.sep).replace(new RegExp(STORAGE_FOLDER_PLACEHOLDER + escapeStringRegexp(path.sep) + noteKey, 'g'), DESTINATION_FOLDER)
+  return input.replace(new RegExp(mdurl.encode(path.sep), 'g'), path.sep).replace(new RegExp(STORAGE_FOLDER_PLACEHOLDER + '(' + escapeStringRegexp(path.sep) + noteKey + ')?', 'g'), DESTINATION_FOLDER)
 }
 
 /**
@@ -239,6 +272,9 @@ function deleteAttachmentFolder (storageKey, noteKey) {
  * @param noteKey NoteKey of the current note. Is used to determine the belonging attachment folder.
  */
 function deleteAttachmentsNotPresentInNote (markdownContent, storageKey, noteKey) {
+  if (storageKey == null || noteKey == null || markdownContent == null) {
+    return
+  }
   const targetStorage = findStorage.findStorage(storageKey)
   const attachmentFolder = path.join(targetStorage.path, DESTINATION_FOLDER, noteKey)
   const attachmentsInNote = getAttachmentsInContent(markdownContent)
@@ -248,11 +284,10 @@ function deleteAttachmentsNotPresentInNote (markdownContent, storageKey, noteKey
       attachmentsInNoteOnlyFileNames.push(attachmentsInNote[i].replace(new RegExp(STORAGE_FOLDER_PLACEHOLDER + escapeStringRegexp(path.sep) + noteKey + escapeStringRegexp(path.sep), 'g'), ''))
     }
   }
-
   if (fs.existsSync(attachmentFolder)) {
     fs.readdir(attachmentFolder, (err, files) => {
       if (err) {
-        console.error("Error reading directory '" + attachmentFolder + "'. Error:")
+        console.error('Error reading directory "' + attachmentFolder + '". Error:')
         console.error(err)
         return
       }
@@ -261,29 +296,37 @@ function deleteAttachmentsNotPresentInNote (markdownContent, storageKey, noteKey
           const absolutePathOfFile = path.join(targetStorage.path, DESTINATION_FOLDER, noteKey, file)
           fs.unlink(absolutePathOfFile, (err) => {
             if (err) {
-              console.error("Could not delete '%s'", absolutePathOfFile)
+              console.error('Could not delete "%s"', absolutePathOfFile)
               console.error(err)
               return
             }
-            console.info("File '" + absolutePathOfFile + "' deleted because it was not included in the content of the note")
+            console.info('File "' + absolutePathOfFile + '" deleted because it was not included in the content of the note')
           })
         }
       })
     })
   } else {
-    console.info("Attachment folder ('" + attachmentFolder + "') did not exist..")
+    console.info('Attachment folder ("' + attachmentFolder + '") did not exist..')
   }
 }
 
+/**
+ * Clones the attachments of a given note.
+ * Copies the attachments to their new destination and updates the content of the new note so that the attachment-links again point to the correct destination.
+ * @param oldNote Note that is being cloned
+ * @param newNote Clone of the note
+ */
 function cloneAttachments (oldNote, newNote) {
   if (newNote.type === 'MARKDOWN_NOTE') {
     const oldStorage = findStorage.findStorage(oldNote.storage)
     const newStorage = findStorage.findStorage(newNote.storage)
     const attachmentsPaths = getAbsolutePathsOfAttachmentsInContent(oldNote.content, oldStorage.path) || []
+
     const destinationFolder = path.join(newStorage.path, DESTINATION_FOLDER, newNote.key)
     if (!sander.existsSync(destinationFolder)) {
       sander.mkdirSync(destinationFolder)
     }
+
     for (const attachment of attachmentsPaths) {
       const destination = path.join(newStorage.path, DESTINATION_FOLDER, newNote.key, path.basename(attachment))
       sander.copyFileSync(attachment).to(destination)
@@ -293,6 +336,72 @@ function cloneAttachments (oldNote, newNote) {
     console.debug('Cloning of the attachment was skipped since it only works for MARKDOWN_NOTEs')
   }
 }
+
+function generateFileNotFoundMarkdown () {
+  return '**' + i18n.__('âš  You have pasted a link referring an attachment that could not be found in the storage location of this note. Pasting links referring attachments is only supported if the source and destination location is the same storage. Please Drag&Drop the attachment instead! âš ') + '**'
+}
+
+/**
+ * Determines whether a given text is a link to an boostnote attachment
+ * @param text Text that might contain a attachment link
+ * @return {Boolean} Result of the test
+ */
+function isAttachmentLink (text) {
+  if (text) {
+    return text.match(new RegExp('.*\\[.*\\]\\( *' + escapeStringRegexp(STORAGE_FOLDER_PLACEHOLDER) + escapeStringRegexp(path.sep) + '.*\\).*', 'gi')) != null
+  }
+  return false
+}
+
+/**
+ * @description Handles the paste of an attachment link. Copies the referenced attachment to the location belonging to the new note.
+ *  Returns a modified version of the pasted text so that it matches the copied attachment (resp. the new location)
+ * @param storageKey StorageKey of the current note
+ * @param noteKey NoteKey of the currentNote
+ * @param linkText Text that was pasted
+ * @return {Promise<String>} Promise returning the modified text
+ */
+function handleAttachmentLinkPaste (storageKey, noteKey, linkText) {
+  if (storageKey != null && noteKey != null && linkText != null) {
+    const storagePath = findStorage.findStorage(storageKey).path
+    const attachments = getAttachmentsInContent(linkText) || []
+    const replaceInstructions = []
+    const copies = []
+    for (const attachment of attachments) {
+      const absPathOfAttachment = attachment.replace(new RegExp(STORAGE_FOLDER_PLACEHOLDER, 'g'), path.join(storagePath, DESTINATION_FOLDER))
+      copies.push(
+        sander.exists(absPathOfAttachment)
+          .then((fileExists) => {
+            if (!fileExists) {
+              const fileNotFoundRegexp = new RegExp('!?' + escapeStringRegexp('[') + '[\\w|\\d|\\s|\\.]*\\]\\(\\s*' + STORAGE_FOLDER_PLACEHOLDER + '[\\w|\\d|\\-|' + escapeStringRegexp(path.sep) + ']*' + escapeStringRegexp(path.basename(absPathOfAttachment)) + escapeStringRegexp(')'))
+              replaceInstructions.push({regexp: fileNotFoundRegexp, replacement: this.generateFileNotFoundMarkdown()})
+              return Promise.resolve()
+            }
+            return this.copyAttachment(absPathOfAttachment, storageKey, noteKey)
+              .then((fileName) => {
+                const replaceLinkRegExp = new RegExp(escapeStringRegexp('(') + ' *' + STORAGE_FOLDER_PLACEHOLDER + '[\\w|\\d|\\-|' + escapeStringRegexp(path.sep) + ']*' + escapeStringRegexp(path.basename(absPathOfAttachment)) + ' *' + escapeStringRegexp(')'))
+                replaceInstructions.push({
+                  regexp: replaceLinkRegExp,
+                  replacement: '(' + path.join(STORAGE_FOLDER_PLACEHOLDER, noteKey, fileName) + ')'
+                })
+                return Promise.resolve()
+              })
+          })
+      )
+    }
+    return Promise.all(copies).then(() => {
+      let modifiedLinkText = linkText
+      for (const replaceInstruction of replaceInstructions) {
+        modifiedLinkText = modifiedLinkText.replace(replaceInstruction.regexp, replaceInstruction.replacement)
+      }
+      return modifiedLinkText
+    })
+  } else {
+    console.log('One if the parameters was null -> Do nothing..')
+    return Promise.resolve(linkText)
+  }
+}
+
 module.exports = {
   copyAttachment,
   fixLocalURLS,
@@ -306,6 +415,10 @@ module.exports = {
   deleteAttachmentsNotPresentInNote,
   moveAttachments,
   cloneAttachments,
+  isAttachmentLink,
+  handleAttachmentLinkPaste,
+  generateFileNotFoundMarkdown,
+  migrateAttachments,
   STORAGE_FOLDER_PLACEHOLDER,
   DESTINATION_FOLDER
 }

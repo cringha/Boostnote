@@ -6,7 +6,7 @@ const xmlrpc = require('xmlrpc')
 
 var crypto = require('crypto')
 const DESTINATION_FOLDER = 'attachments'
-const IMAGE_REG = /!\[(.*?)\]\((.*)\)/gi
+const IMAGE_REG = /!\[(.*?)\]\((.*)([\s+=\d+x\d+]?)\)/gi
 
 function MetaWeblog(opts) {
     let address = opts.address
@@ -69,6 +69,15 @@ function MetaWeblog(opts) {
 };
 
 
+
+    function escapeHtml(unsafe) {
+        return unsafe
+             .replace(/&/g, "&amp;")
+             .replace(/</g, "&lt;")
+             .replace(/>/g, "&gt;")
+             .replace(/"/g, "&quot;")
+             .replace(/'/g, "&#039;");
+     }
 
 class MetaWeblogClient {
 
@@ -143,8 +152,6 @@ class MetaWeblogClient {
     //     }
     // }
 
-
-
     /**
      * @param  {note}
      * @param  {[type]}
@@ -184,6 +191,8 @@ class MetaWeblogClient {
             const markdown = new Markdown();
             exportedData = markdown.render(exportedData);
 
+        }else {
+            exportedData = escapeHtml(exportedData);
         }
 
         var post = {
@@ -481,15 +490,53 @@ function replaceRealPath( url  , storagePath  ){
     return fullPath;
 }
 
+/**
+ * \be9ecfe3-6223-4be6-8470-af119e0aedc3\27bd0500.png =100x200
+ * 
+ * @param  {[type]} name [description]
+ * @return {[type]}      [description]
+ */
+
+
+function getRealImagePath(name){
+    //TODO: name 格式  zzzzzzzzzzzzzz =100x200 
+    
+    let regex = /(\S*)(\s+=\d+x\d+$)?/gi
+    let m;
+    let array = [];
+    while ((m = regex.exec(name)) !== null) {
+        // This is necessary to avoid infinite loops with zero-width matches
+        if (m.index === regex.lastIndex) {
+            regex.lastIndex++;
+        }
+        return m[1];
+        // var fx = m[0];
+        // if (fx) {
+        //     var name = fx.substring(1, fx.length - 1);
+        //     // console.log( 'm0  ' + m[0] ); 
+        //     // console.log( 'm1  ' + m[1] ); 
+        //     // console.log( 'm2  ' + m[2] ); 
+        //     // console.log( '');
+        //     if (m[2])
+        //         array.push(m[2]);
+        // }
+    }
+    return name ;
+    // return array;
+}
+
 
 // 检查 Blog Image cache中 有没有缓存的数据
-export
+export 
 function checkImageCache(blog, image, name) {
     if (!blog.imageUrls || blog.imageUrls.length == 0)
         return null;
 
     if (!name)
         name = 'src';
+
+    image = getRealImagePath(image);
+
 
     for (var i = 0; i < blog.imageUrls.length; i++) {
         var im = blog.imageUrls[i];

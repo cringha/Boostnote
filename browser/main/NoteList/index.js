@@ -804,8 +804,12 @@ const config = ConfigManager.get();
         const selectedNotes = findNotesByKeys(notes, selectedNoteKeys)
         const firstNote = selectedNotes[0]
         const config = ConfigManager.get()
-        const { storage, folder } = this.resolveTargetFolder();
+        // const { storage, folder } = this.resolveTargetFolder();
         var that = this;
+
+
+        const { data, params } = this.props ;
+        let storage = data.storageMap.get(firstNote.storage);
 
         var client = new MetaWeblogUtils.MetaWeblogClient(config.blog);
     
@@ -868,9 +872,13 @@ const config = ConfigManager.get();
         const config = ConfigManager.get()
         // const { address, token, authMethod, username, password } = config.blog
         const { router } = this.context;
-        const { storage, folder } = this.resolveTargetFolder();
+        /// const { storage, folder } = this.resolveTargetFolder();
 
-        const { dispatch, location } = this.props;
+        const {  data , dispatch, location } = this.props;
+
+        
+        let storage = data.storageMap.get(firstNote.storage);
+
 
         var blog = MetaWeblogUtils.findBlogInNote( firstNote , config.blog.address );
         if(!blog || !blog.blogId ) {
